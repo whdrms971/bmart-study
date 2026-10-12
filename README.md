@@ -1,61 +1,41 @@
-# B마트 공통 규칙 연결 대시보드 — 팀 공동 편집판
+# B마트 공통 규칙 연결 대시보드
 
-기존 PART 1~12의 58개 규칙, 30개 미정 정책, 5개 도메인 연결 정보를 보존합니다.
+5개 도메인 × PART 1~12의 **공통 규칙 58개와 팀 미정 정책 30건**을 확인하는 정적 HTML 대시보드입니다.
 
-## 대시보드 열기
-- **웹사이트:** https://whdrms971.github.io/bmart-study/ (GitHub Pages 배포 완료 후 이용 가능)
-- **배포 설정:** Settings → Pages → Deploy from a branch → `main` / `/(root)` → Save
+**대시보드 주소:** https://whdrms971.github.io/bmart-study/
 
-## 새 기능
-- 목차 추가·제목/설명/본문 편집·순서 변경·숨김·사용자 추가 목차 삭제
-- 팀 작업의 담당자·진행 상태·완료율 공동 관리
-- 정책 결정 상태·담당자·기한·결정 근거 공동 저장
-- 변경 이력 저장·낙관적 버전 충돌 검사·실시간 변경 알림
-- 기존 상세 규칙 원문은 GitHub HTML에 고정하여 보존하고, 팀 추가 본문은 별도 DB에서 편집합니다.
+> GitHub Pages가 활성화되어 있어야 위 주소에서 화면이 열립니다. Settings → Pages → Deploy from a branch → main / (root) 설정.
 
-## 중요: 공동 저장 활성화하기
-**현재 저장소의 `shared-editor-config.js`는 설정 값이 비어 있습니다.** 사이트를 볼 수 있어도 공동 편집은 아직 작동하지 않습니다.
+## 팀원 이용
+- 팀원 누구나 링크를 클릭해 조사 내용과 도메인 연결 정보를 조회할 수 있습니다.
+- **목차·소개·안내문 수정은 GitHub에서 변경한 다음 Commit changes** 하면 Pages 사이트에 반영됩니다.
+- 실시간 다중 편집, DB, 로그인, Supabase는 사용하지 않습니다.
 
-1. [Supabase](https://supabase.com/dashboard)에서 **대시보드 전용 프로젝트**를 만듭니다.
-2. SQL Editor에서 `supabase/setup.sql` 전체를 실행합니다.
-3. Authentication → Users에서 팀원 계정을 준비합니다. 공개 가입은 프로젝트 정책에 맞게 차단하거나 제한하세요.
-4. SQL Editor로 팀원 역할을 등록합니다. **최초 관리자는 반드시 admin으로 등록**합니다.
+## 목차 수정 (가장 쉬운 방법)
+1. [dashboard-content.js](./dashboard-content.js) 파일을 GitHub에서 엽니다.
+2. 오른쪽 연필 아이콘(**Edit this file**)을 클릭합니다.
+3. 파일 위쪽 `window.BMART_CONTENT` 객체의 **menus** 부분을 수정합니다.
+   - `label`: 왼쪽 목차 이름
+   - `title`: 해당 화면의 큰 제목
+   - `description`: 페이지 소개 문구
+   - `icon`: 목차 아이콘
+   - **순서를 바꾸고 싶으면 항목 행의 순서를 변경**합니다.
+4. **Commit changes**를 누릅니다.
+5. GitHub Pages가 재배포되면 팀원들에게도 반영됩니다(필요하면 새로고침).
 
-```sql
-insert into public.dashboard_members(user_id, display_name, role)
-select id, '팀 관리자', 'admin'
-from auth.users where email = 'ADMIN_EMAIL@example.com'
-on conflict (user_id) do update set role='admin', active=true;
-```
+기존 다섯 메뉴의 `id`(`overview`, `matrix`, `rules`, `policies`, `handoff`)는 바꾸지 마세요.
 
-다른 팀원은 이메일·이름을 바꾸고 `role='editor'` 또는 `role='viewer'`를 적용합니다.
+## 새 목차 또는 내용 추가
+- 같은 파일의 `extraPages` 배열에 새 페이지를 추가합니다. 파일 내 주석 예시를 참고하세요.
+- 기존 페이지에 안내 문구를 추가하려면 `notes`에 `overview: "추가 안내"` 같은 값을 넣습니다.
+- 58개 규칙 또는 도메인 매트릭스의 **원본 데이터 자체**를 바꾸려면 `index.html` 내부 `const DB` 데이터를 수정해야 합니다. 가능하면 수정 전 근거 자료를 검토하고 별도 커밋을 남기세요.
 
-5. `shared-editor-config.js`에 프로젝트 **URL과 공개 publishable key**를 입력해 커밋합니다.
+## 정책 회의 기록 관련
+현재 미정 정책 화면의 '저장' 버튼은 **현재 브라우저의 localStorage에만 저장**됩니다. 팀원 전체에 공유되지는 않습니다. 회의 결정 내용을 공유할 때는 CSV/JSON으로 내보내거나 GitHub에 회의 기록을 별도로 커밋해 관리하세요. **개인 브라우저의 '확정' 표시는 공식 팀 확정으로 간주하면 안 됩니다.**
 
-```javascript
-window.BMART_SUPABASE = {
-  url: 'https://YOUR-PROJECT.supabase.co',
-  anonKey: 'YOUR-PUBLISHABLE-KEY'
-};
-```
+## 파일 구성
+- `index.html`: 기존 대시보드 화면·58개 규칙·30개 정책
+- `dashboard-content.js`: 팀이 GitHub에서 수정할 목차·페이지 안내문 및 새 페이지 설정
+- `README.md`: 사용 설명서
 
-6. 웹페이지에서 **팀원 로그인** → **목차·본문 편집**을 사용합니다. `admin` 또는 `editor` 권한의 팀원만 수정할 수 있습니다.
-
-**절대로 service_role, secret key, DB 비밀번호를 GitHub에 넣지 마세요.** 서버 권한은 Supabase RLS에서 검증합니다.
-
-## 현재 미구현·주의사항
-- Supabase 설정 전에는 기존 HTML 보기와 개인 브라우저 정책 기록만 가능합니다.
-- 기존 58개 규칙의 원문과 30개 정책의 제목은 웹 편집 대상이 아니라 HTML의 조사 근거입니다. 본문 추가 및 목차 편집은 가능합니다.
-- 별도 파일이나 새로운 프로그램 기능을 추가하려면 GitHub 파일을 수정해야 합니다.
-- 진행률은 `완료 작업 수 / 전체 작업 수`이고, 전체 B마트 애플리케이션 구현률은 아닙니다.
-- 공개 Pages에서는 HTML과 정적 자료를 외부에서도 볼 수 있습니다. DB 내부 내용은 팀원 로그인·RLS로 보호하지만 **비공개 조사 원문은 이 저장소에 올리지 마세요**.
-- 실제 DB 연결·동기화·접근 통제 시나리오 테스트는 아직 수행되지 않았습니다.
-
-## 팀 검증 체크
-- [ ] GitHub Pages에서 기존 화면 정상 표시
-- [ ] Supabase SQL 적용 및 팀원 등록
-- [ ] 관리자 목차 추가·이름 변경·본문 저장
-- [ ] 다른 팀원 PC에서 변경 확인
-- [ ] 미승인 계정의 데이터 접근 거부
-- [ ] 정책 확정은 관리자 권한만 허용
-- [ ] 동시 편집 충돌 시 경고 및 재조회
+> 저장소와 Pages 사이트가 공개되어 있으므로 민감한 내부 자료·비밀번호·API 비밀키를 올리지 마세요.
