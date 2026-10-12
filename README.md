@@ -1,41 +1,64 @@
-# B마트 공통 규칙 연결 대시보드
+# B마트 팀 통합 대시보드
 
-5개 도메인 × PART 1~12의 **공통 규칙 58개와 팀 미정 정책 30건**을 확인하는 정적 HTML 대시보드입니다.
+**웹사이트:** https://whdrms971.github.io/bmart-study/
 
-**대시보드 주소:** https://whdrms971.github.io/bmart-study/
+5개 도메인의 팀원 조사 자료와 PART 1~12 공통 규칙·도메인 연결 분석을 함께 모아 보는 GitHub Pages 대시보드입니다.
 
-> GitHub Pages가 활성화되어 있어야 위 주소에서 화면이 열립니다. Settings → Pages → Deploy from a branch → main / (root) 설정.
+## 사용 방법
 
-## 팀원 이용
-- 팀원 누구나 링크를 클릭해 조사 내용과 도메인 연결 정보를 조회할 수 있습니다.
-- **목차·소개·안내문 수정은 GitHub에서 변경한 다음 Commit changes** 하면 Pages 사이트에 반영됩니다.
-- 실시간 다중 편집, DB, 로그인, Supabase는 사용하지 않습니다.
+GitHub Pages 사이트에서 왼쪽 **팀원별 도메인 자료** 메뉴를 누르고 조사 자료를 선택하면 됩니다. 자료는 Markdown 파일로 저장되어 있으므로 GitHub에서 수정하고 **Commit changes**하면 사이트에 반영됩니다.
 
-## 목차 수정 (가장 쉬운 방법)
-1. [dashboard-content.js](./dashboard-content.js) 파일을 GitHub에서 엽니다.
-2. 오른쪽 연필 아이콘(**Edit this file**)을 클릭합니다.
-3. 파일 위쪽 `window.BMART_CONTENT` 객체의 **menus** 부분을 수정합니다.
-   - `label`: 왼쪽 목차 이름
-   - `title`: 해당 화면의 큰 제목
-   - `description`: 페이지 소개 문구
-   - `icon`: 목차 아이콘
-   - **순서를 바꾸고 싶으면 항목 행의 순서를 변경**합니다.
-4. **Commit changes**를 누릅니다.
-5. GitHub Pages가 재배포되면 팀원들에게도 반영됩니다(필요하면 새로고침).
+### 1. 팀원 자료 내용 수정
 
-기존 다섯 메뉴의 `id`(`overview`, `matrix`, `rules`, `policies`, `handoff`)는 바꾸지 마세요.
+1. [domains 폴더](./domains)에서 해당 `.md` 파일을 엽니다.
+2. GitHub 연필 아이콘을 눌러 내용을 수정합니다.
+3. Commit changes를 누릅니다. 배포 이후 팀원이 같은 사이트 주소로 최신 내용을 확인할 수 있습니다.
 
-## 새 목차 또는 내용 추가
-- 같은 파일의 `extraPages` 배열에 새 페이지를 추가합니다. 파일 내 주석 예시를 참고하세요.
-- 기존 페이지에 안내 문구를 추가하려면 `notes`에 `overview: "추가 안내"` 같은 값을 넣습니다.
-- 58개 규칙 또는 도메인 매트릭스의 **원본 데이터 자체**를 바꾸려면 `index.html` 내부 `const DB` 데이터를 수정해야 합니다. 가능하면 수정 전 근거 자료를 검토하고 별도 커밋을 남기세요.
+현재 각 도메인 파일은 **조사 자료 취합용 빈 템플릿**입니다. 실제 팀원 조사 내용이 업로드되기 전까지는 확정된 설계가 아닙니다.
 
-## 정책 회의 기록 관련
-현재 미정 정책 화면의 '저장' 버튼은 **현재 브라우저의 localStorage에만 저장**됩니다. 팀원 전체에 공유되지는 않습니다. 회의 결정 내용을 공유할 때는 CSV/JSON으로 내보내거나 GitHub에 회의 기록을 별도로 커밋해 관리하세요. **개인 브라우저의 '확정' 표시는 공식 팀 확정으로 간주하면 안 됩니다.**
+### 2. 목차 이름 변경·순서 변경·삭제
 
-## 파일 구성
-- `index.html`: 기존 대시보드 화면·58개 규칙·30개 정책
-- `dashboard-content.js`: 팀이 GitHub에서 수정할 목차·페이지 안내문 및 새 페이지 설정
-- `README.md`: 사용 설명서
+[dashboard-content.js](./dashboard-content.js)에서:
+- `menus` 배열: 왼쪽 **전체 메뉴**의 이름(`label`)·제목(`title`)·설명(`description`)·순서 변경; 항목을 지우면 목차에서 숨깁니다.
+- `domainDocs` 배열: **팀원 문서 목록**의 이름·담당자(`owner`)·순서 변경; 항목을 지우면 해당 문서를 대시보드에서 숨깁니다.
+- 원래 메뉴 `id`는 기존 화면 기능 연결에 사용하므로 유지하는 편이 좋습니다.
 
-> 저장소와 Pages 사이트가 공개되어 있으므로 민감한 내부 자료·비밀번호·API 비밀키를 올리지 마세요.
+목차에서 삭제해도 GitHub의 실제 문서가 삭제되는 것은 아닙니다. 실제 파일을 삭제하려면 GitHub에서 해당 파일의 **Delete file** 기능을 사용한 뒤 `domainDocs` 목록에서도 제거하세요.
+
+### 3. 새 문서 추가
+
+1. `domains/` 폴더에 새 Markdown 파일을 생성합니다(예: `07_shipping_policy.md`).
+2. [dashboard-content.js](./dashboard-content.js)의 `domainDocs` 배열에 아래 항목을 추가합니다.
+
+```js
+{ id: "shipping", label: "배송 추가 정책", file: "domains/07_shipping_policy.md", owner: "미정" }
+```
+
+### 4. 공통 규칙·정책 설명 수정
+
+기존 58개 규칙과 30개 정책은 원본 근거를 유지하기 위해 `index.html`에 보존되어 있습니다. 화면에서 일부 설명만 교체하려면 `dashboard-content.js`의 `ruleEdits` 또는 `policyEdits`에 변경 내용을 작성합니다.
+
+```js
+ruleEdits: { "1-1": { title: "수정된 규칙 제목" } },
+policyEdits: { "M03": { title: "수정된 정책 제목" } },
+```
+
+원본 목록 자체를 구조적으로 제거하려면 연결 규칙과 통계에 영향을 주므로 별도 검토 후 `index.html`의 데이터 및 해당 뷰를 함께 변경해야 합니다.
+
+### 5. 주의할 점
+
+- **미정 정책 화면의 저장 버튼은 아직 개인 브라우저에만 저장됩니다.** 팀 전체 공동 기록은 GitHub에 회의록을 커밋해 관리하세요.
+- 팀원 모두가 GitHub에서 문서를 고치려면 해당 저장소 쓰기 권한이 필요합니다. 쓰기 권한이 없는 팀원은 Fork/PR 또는 담당자에게 변경을 전달하는 방식으로 참여할 수 있습니다.
+- 공개 저장소이므로 공개되면 안 되는 자료, 개인정보, API 비밀키 등은 넣지 마세요.
+- MD 미리보기는 제목·문단·목록·기본 표·링크 등 일부 문법만 지원합니다. 복잡한 Markdown은 원문 GitHub에서 확인하세요.
+- 실제 B마트 서비스 개발 완료나 통합 검증 성공을 의미하지 않습니다.
+
+## 파일 구조
+
+```text
+index.html             전체 시스템, 5개 도메인 연결, PART 1~12, 58개 규칙, 30개 정책
+dashboard-content.js   메뉴·문서 목록·설명 수정 지점
+team-docs.js/css       팀원 Markdown 파일 표시
+domains/               5개 도메인 + 공통 연결용 Markdown 템플릿
+README.md              사용 설명서
+```
