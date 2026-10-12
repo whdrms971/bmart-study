@@ -14,6 +14,9 @@ window.BMART_CONTENT = {
     { id: "overview", label: "전체 개요", icon: "◈",
       title: "공통 규칙 연결 대시보드",
       description: "5개 도메인의 업무를 다시 쓰지 않고, PART 1~12가 어디에 적용되는지 한눈에 확인합니다." },
+    { id: "team", label: "팀원별 도메인 자료", icon: "▤",
+      title: "5개 도메인 자료 취합",
+      description: "다른 팀원들의 조사 자료를 편집·삭제·추가하고 공통 규칙과 연결합니다." },
     { id: "matrix", label: "도메인 연결 매트릭스", icon: "▦",
       title: "도메인 연결 매트릭스",
       description: "도메인과 PART의 접점을 확인하고 관련 세부 규칙을 열어보세요." },
@@ -27,6 +30,23 @@ window.BMART_CONTENT = {
       title: "개발 연결·책임 분리",
       description: "공통 설계 기준과 도메인별 구현 책임을 연결합니다." }
   ],
+
+  // 팀원 도메인 문서입니다. 항목 수정/삭제/순서 변경은 아래 배열에서,
+  // 실제 문서 내용 수정은 GitHub domains/*.md 파일에서 진행합니다.
+  domainDocs: [
+    { id: "customer", label: "고객 앱", file: "domains/01_customer.md", owner: "미정" },
+    { id: "catalog", label: "상품·가격·혜택", file: "domains/02_catalog.md", owner: "미정" },
+    { id: "inventory", label: "공급·재고·물류", file: "domains/03_inventory.md", owner: "미정" },
+    { id: "orders", label: "주문·결제·환불", file: "domains/04_orders.md", owner: "미정" },
+    { id: "delivery", label: "배송·고객지원", file: "domains/05_delivery.md", owner: "미정" },
+    { id: "integration", label: "도메인 연결·공통 기준", file: "domains/06_integration.md", owner: "미정" }
+  ],
+
+  // 기존 공통 규칙/정책 내용 중 변경할 부분만 덮어씁니다.
+  // 예시: ruleEdits: { "1-1": { title: "변경 제목", gap: "수정 사항" } }
+  // 예시: policyEdits: { "M03": { title: "회의 결과 반영 제목" } }
+  ruleEdits: {},
+  policyEdits: {},
 
   // 기존 페이지에 보충 설명을 표시하고 싶으면 아래처럼 작성합니다.
   // notes: { overview: "10월 12일 팀 회의에서 확인할 내용입니다." }
@@ -59,7 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (typeof go !== "function" || typeof pageTitles === "undefined") return;
   const cfg = window.BMART_CONTENT || {};
   const nav = document.getElementById("nav");
-  const baseIds = new Set(["overview", "matrix", "rules", "policies", "handoff"]);
+  const baseIds = new Set(["overview", "team", "matrix", "rules", "policies", "handoff"]);
   const menus = [];
   const used = new Set();
 
