@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # B마트 팀 통합 대시보드
 
 **웹사이트:** https://whdrms971.github.io/bmart-study/
@@ -62,3 +63,17 @@ team-docs.js/css       팀원 Markdown 파일 표시
 domains/               5개 도메인 + 공통 연결용 Markdown 템플릿
 README.md              사용 설명서
 ```
+=======
+# B마트 프로젝트 공통 관리
+
+## 공통 규칙 연결 대시보드
+
+[📊 B마트 공통 연결 대시보드 바로가기](https://whdrms971.github.io/bmart-study/)
+
+### 주요 기능
+- 전체 시스템 구성 확인
+- 5개 도메인 × PART 1~12 연결 매트릭스 조회
+- 공통 규칙 58개 확인
+- 미정 정책 30건 확인
+- 구현 책임 및 후속 작업 확인
+>>>>>>> e6da0a0 (수정)
