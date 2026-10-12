@@ -37,6 +37,7 @@
     @media(max-width:620px){.sidebar{position:relative;width:100%;height:auto;padding:12px;display:block}.app{display:block}.sidebar .logo{justify-content:start;margin-bottom:9px}.logo strong,.logo small{display:block}.nav{display:flex;overflow-x:auto;white-space:nowrap}.nav button{min-width:51px}.main{margin-left:0;width:100%;padding:16px 13px 30px}.topline h1{font-size:25px}.summary-stats{grid-template-columns:repeat(2,1fr)}.stat{padding:14px}.stat .num{font-size:26px}.panel{padding:15px}.flow-wrap{overflow:auto}.flow-node{min-width:120px}.domain-list,.group-cards,.matrix-bottom,.data-grid{grid-template-columns:1fr}.data-cell.full{grid-column:1}.filters input{width:100%}.topline{margin-bottom:15px}.section-title{flex-direction:column}.rule-results{max-height:300px}.keygrid{grid-template-columns:73px 1fr}}
     @media print{body{background:white}.sidebar,.top-actions,.filters,.btn,.nav,.footer,.policy-note{display:none!important}.main{margin:0;width:100%;max-width:none;padding:0}.panel,.stat{box-shadow:none;break-inside:avoid}.view{display:none!important}.view.active{display:block!important}.rule-results,.table-scroll{max-height:none;overflow:visible}.rule-layout,.policy-layout{grid-template-columns:1fr}.topline h1{font-size:23px}.matrix{min-width:0}.matrix td button{background:#e5f3f2;color:#097978}}
   </style>
+  <link rel="stylesheet" href="./shared-editor.css">
 </head>
 <body>
 <div class="app">
@@ -181,5 +182,8 @@ function renderHandoff(){
 }
 renderOverview();renderMatrix();renderRules();renderPolicies();renderHandoff();
 </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./shared-editor-config.js"></script>
+  <script src="./shared-editor.js"></script>
 </body>
 </html>
