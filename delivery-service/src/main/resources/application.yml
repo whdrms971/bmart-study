@@ -1,0 +1,52 @@
+server:
+  port: ${PORT:8080}
+  address: 0.0.0.0   # 휴대폰(LAN) 접근용. 방화벽은 별도 승인 필요
+
+spring:
+  application:
+    name: delivery-service
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    root: INFO
+    # 외부 HTTP 요청 헤더(카카오 키 포함)를 절대 로깅하지 않도록 DEBUG 금지
+    org.springframework.web.client: INFO
+    org.apache.hc: INFO
+
+kakao:
+  # 서버 전용. 값은 환경변수로만 주입한다. 로그·응답에 출력 금지
+  rest-api-key: ${KAKAO_REST_API_KEY:}
+  local-base-url: https://dapi.kakao.com
+  mobility-base-url: https://apis-navi.kakaomobility.com
+  connect-timeout-ms: 3000
+  read-timeout-ms: 5000
+
+delivery:
+  auth:
+    secret: ${DELIVERY_AUTH_SECRET:}
+    token-ttl-minutes: 720
+    internal-token: ${DELIVERY_INTERNAL_TOKEN:}
+  outbox:
+    oms-endpoint: ${DELIVERY_OMS_EVENT_ENDPOINT:}
+    relay-interval-ms: 2000
+  # 운영 정책값은 의도적으로 기본값 없음 (DECISIONS.md P-01~P-14). 미설정 시 해당 기능 차단.
+  policy: {}
+  mfcs: []
+  simulation:
+    enabled: false

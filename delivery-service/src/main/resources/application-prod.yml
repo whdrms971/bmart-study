@@ -1,0 +1,13 @@
+# 운영 프로필 골격. 테스트 지원(Mock OMS/MFC·시뮬레이터·테스트 로그인)은 존재하지 않는다.
+# 정책값(delivery.policy.*)과 MFC 거점은 팀 승인 후 외부 설정으로 주입해야 하며, 미설정 기능은 차단된다.
+spring:
+  datasource:
+    url: ${DELIVERY_DB_URL}
+    username: ${DELIVERY_DB_USER}
+    password: ${DELIVERY_DB_PASSWORD}
+  flyway:
+    locations: classpath:db/migration
+
+delivery:
+  simulation:
+    enabled: false

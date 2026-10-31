@@ -1,0 +1,6 @@
+# local-test + postgres: docker compose 의 PostgreSQL 사용 (SPRING_PROFILES_ACTIVE=local-test,postgres)
+spring:
+  datasource:
+    url: ${DELIVERY_DB_URL:jdbc:postgresql://localhost:5432/delivery}
+    username: ${DELIVERY_DB_USER:delivery}
+    password: ${DELIVERY_DB_PASSWORD:}

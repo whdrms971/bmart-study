@@ -1,0 +1,54 @@
+# ==========================================================================
+# local-test 프로필 — 개발/테스트 전용. 아래 정책값은 모두 TEST-ONLY 이며 확정 운영값이 아니다.
+# (DECISIONS.md P-01~P-14 참조)
+# ==========================================================================
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/delivery-local;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE
+    username: sa
+    password: ""
+  flyway:
+    locations: classpath:db/migration,classpath:db/testsupport
+
+delivery:
+  outbox:
+    # 비어 있으면 같은 서버의 Mock OMS 수신 엔드포인트를 사용
+    oms-endpoint: ${DELIVERY_OMS_EVENT_ENDPOINT:}
+  mfc-client:
+    # 비어 있으면 같은 서버의 Mock MFC를 사용
+    base-url: ${DELIVERY_MFC_BASE_URL:}
+  policy:
+    offer-ttl-seconds: 60            # P-01 TEST-ONLY
+    max-dispatch-attempts: 3         # P-03 TEST-ONLY
+    rider-location-freshness-seconds: 300
+    max-concurrent-deliveries: 3     # P-10 TEST-ONLY
+    expose-rider-location-from: PICKED_UP   # P-05 TEST-ONLY
+    location-future-skew-seconds: 30        # P-06 TEST-ONLY
+    location-max-delay-seconds: 120         # P-06 TEST-ONLY
+    location-max-speed-mps: 50              # P-07 TEST-ONLY
+    eta-min-interval-seconds: 60            # P-08 TEST-ONLY
+    proof-storage-dir: ./data/proofs
+  mfcs:
+    - id: MFC-TEST-REMOTE-01
+      name: "가상 원거리 거점 (운영 좌표 아님)"
+      virtual: true
+      latitude: 35.169176
+      longitude: 129.132233
+      location-mode: SIMULATED_ROUTE
+      radius-policy: TEST_BYPASS       # 원거리 시뮬레이션 전용. 라이더 위치와 무관하게 제안
+    - id: MFC-TEST-01
+      name: "근거리 실GPS 테스트 거점 (관리자 화면에서 실제 테스트 장소로 재설정)"
+      virtual: true
+      latitude: ${DELIVERY_NEAR_MFC_LAT:35.1796}
+      longitude: ${DELIVERY_NEAR_MFC_LNG:129.0756}
+      location-mode: DEVICE_GPS
+      radius-policy: ENFORCE
+      radius-meters: 3000              # P-02 TEST-ONLY
+  simulation:
+    enabled: true
+    tick-real-ms: 1000
+  test-accounts:
+    passcode: ${DELIVERY_TEST_PASSCODE:}
+    customers: [C-TEST-01, C-TEST-02]
+    riders: [R-TEST-01, R-TEST-02, R-TEST-03]
+    admins: [ADMIN-TEST]

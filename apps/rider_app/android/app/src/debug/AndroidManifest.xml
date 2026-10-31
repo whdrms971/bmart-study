@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 디버그 빌드만 http(LAN 개발 서버) 허용 -->
+    <application
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:targetApi="28" />
+</manifest>

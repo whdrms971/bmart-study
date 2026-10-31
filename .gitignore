@@ -1,0 +1,36 @@
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+*.local.json
+**/kakao.local.json
+*.keystore
+*.jks
+key.properties
+
+# --- runtime data ---
+delivery-service/data/
+delivery-service/build/
+delivery-service/.gradle/
+reports/runs/
+*.log
+
+# --- node ---
+simulator-admin/node_modules/
+simulator-admin/dist/
+
+# --- flutter ---
+apps/*/build/
+apps/*/.dart_tool/
+apps/*/.flutter-plugins
+apps/*/.flutter-plugins-dependencies
+
+# --- ide ---
+.idea/
+.vscode/
+*.iml
+
+# 빌드 산출 APK (용량 큼)
+apps/dist/
+*.apk
+
