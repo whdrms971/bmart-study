@@ -52,17 +52,33 @@ try {
         $err = Join-Path $logDir 'backend.err.log'
         $p = Start-Process -FilePath 'java' -ArgumentList $javaArgs -WorkingDirectory $svc `
             -RedirectStandardOutput $log -RedirectStandardError $err -PassThru -WindowStyle Hidden
-        $p.Id | Out-File (Join-Path $logDir 'backend.pid') -Encoding ascii
+        $pidFile = Join-Path $logDir 'backend.pid'
+        $p.Id | Out-File $pidFile -Encoding ascii
         Write-Host "백그라운드 기동 PID=$($p.Id), 로그=$log"
+
+        # 기동 실패 시 남은 프로세스 정리. Oracle javapath 런처는 실제 java 를 자식으로 띄우므로 자식까지 종료한다.
+        # (기동 실패 후에도 JVM 이 종료되지 않고 남는 경우가 있었다 — 2026-11-02)
+        function Stop-StartedServer([string]$reason) {
+            Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -ErrorAction SilentlyContinue |
+                ForEach-Object { Stop-Process -Id $_.ProcessId -Force -Confirm:$false -ErrorAction SilentlyContinue }
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -Confirm:$false -ErrorAction SilentlyContinue }
+            Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+            $tail = if (Test-Path $log) { (Get-Content $log -Tail 5 -ErrorAction SilentlyContinue) -join "`n" } else { '' }
+            throw "$reason — 시작한 프로세스를 정리했습니다. $log 확인`n$tail"
+        }
+
         for ($i = 0; $i -lt 90; $i++) {
             Start-Sleep -Seconds 2
-            if ($p.HasExited) { throw "서버 프로세스가 종료되었습니다(exit $($p.ExitCode)). $log 확인" }
+            if ($p.HasExited) { Stop-StartedServer "서버 프로세스가 종료되었습니다(exit $($p.ExitCode))" }
+            if ((Test-Path $log) -and (Select-String -Path $log -Pattern 'Application run failed|APPLICATION FAILED TO START' -Quiet)) {
+                Stop-StartedServer '서버 기동 실패(Application run failed)'
+            }
             try {
                 $h = Invoke-RestMethod "http://127.0.0.1:$Port/actuator/health" -TimeoutSec 2
                 if ($h.status -eq 'UP') { Write-Host '서버 준비 완료 (health UP)'; return }
             } catch { }
         }
-        throw "서버가 180초 내에 준비되지 않았습니다. $log 확인"
+        Stop-StartedServer '서버가 180초 내에 준비되지 않았습니다'
     } else {
         & java @javaArgs
     }
