@@ -44,6 +44,7 @@ dependencies:
   url_launcher: ^6.3.3
   delivery_common:
     path: ../delivery_common
+  kakao_flutter_sdk_navi: ^2.1.0
 
 dev_dependencies:
   flutter_test:

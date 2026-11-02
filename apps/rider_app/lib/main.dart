@@ -1,11 +1,14 @@
 import 'package:delivery_common/delivery_common.dart';
 import 'package:flutter/material.dart';
+import 'package:kakao_flutter_sdk_navi/kakao_flutter_sdk_navi.dart';
 
 import 'home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initKakaoMap();
+  // 카카오내비 길안내(공식 SDK). 지도 SDK 와 같은 네이티브 앱 키를 쓴다
+  if (AppConfig.hasKakaoKey) KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
   runApp(const RiderApp());
 }
 

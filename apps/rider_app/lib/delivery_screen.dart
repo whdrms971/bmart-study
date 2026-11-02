@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'arrival_check.dart';
 import 'location_reporter.dart';
+import 'navigation.dart';
 import 'navigation_links.dart';
 import 'scan_screen.dart';
 
@@ -42,6 +43,14 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   String? _completeRequestId; // 완료 재시도 시 같은 requestId 사용 (중복 완료 방지)
   Timer? _poll;
   bool _revoked = false;
+
+  // 앱 안 길안내 (서버가 준 카카오 경로 + 현재 위치 투영). 배송 상태와 무관한 보조 기능.
+  bool _navOn = false;
+  NavRoute? _nav;
+  bool _navLoading = false;
+  String? _navMsg;
+  DateTime? _navRetryAt;
+  final _reroute = RerouteMonitor();
 
   ApiClient get api => widget.session.api;
   static const _gpsStates = {'ASSIGNED', 'ARRIVED_AT_MFC', 'PICKED_UP', 'IN_TRANSIT', 'ARRIVED_AT_DESTINATION'};
@@ -91,6 +100,81 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       if (_d != null && _d!['status'] != d['status']) _msg = null;
       _d = d;
     });
+    _navUpdate();
+  }
+
+  // ------------------------------------------------------------------ 앱 안 길안내
+
+  /// 픽업 전에는 MFC, 픽업 후에는 배송지. 종료·취소면 길안내 없음.
+  static String? _navTargetFor(String status) => switch (status) {
+        'ASSIGNED' || 'ARRIVED_AT_MFC' => 'MFC',
+        'PICKED_UP' || 'IN_TRANSIT' || 'ARRIVED_AT_DESTINATION' => 'DESTINATION',
+        _ => null,
+      };
+
+  /// 현재 위치: 실 GPS 배송은 휴대폰 최신 측정값(없으면 서버 위치), SIMULATED 배송은 서버 위치(시뮬레이터).
+  GeoPoint? _currentPosition() {
+    final d = _d;
+    if (d == null) return null;
+    final p = d['locationMode'] == 'DEVICE_GPS' ? _reporter?.lastPosition : null;
+    if (p != null) return GeoPoint(p.latitude, p.longitude);
+    final pos = d['lastLocation'] as Map<String, dynamic>?;
+    return pos == null ? null : GeoPoint((pos['latitude'] as num).toDouble(), (pos['longitude'] as num).toDouble());
+  }
+
+  Future<void> _fetchNav() async {
+    final d = _d;
+    final target = d == null ? null : _navTargetFor('${d['status']}');
+    if (target == null) return _stopNav('배송이 종료되어 길안내를 마쳤습니다');
+    if (_navLoading) return;
+    final retry = _navRetryAt;
+    if (retry != null && DateTime.now().isBefore(retry)) return;
+    setState(() => _navLoading = true);
+    try {
+      final here = d!['locationMode'] == 'DEVICE_GPS' ? _currentPosition() : null; // SIMULATED 는 서버가 출발점을 정한다
+      final q = here == null ? '' : '&lat=${here.lat}&lng=${here.lng}';
+      final j = await api.get('/api/rider/deliveries/${widget.deliveryId}/navigation?target=$target$q') as Map<String, dynamic>;
+      _reroute.reset();
+      setState(() {
+        _nav = NavRoute.fromJson(j);
+        _navMsg = null;
+        _navRetryAt = null;
+      });
+    } on ApiException catch (e) {
+      final wait = (e.status == 429 || e.status == 503) ? 15 : 0; // 서버 재조회 제한과 같은 간격으로만 다시 시도
+      setState(() {
+        _navMsg = e.status == 0 ? e.userMessage : e.message; // 직선 경로로 대체하지 않는다
+        _navRetryAt = wait == 0 ? null : DateTime.now().add(Duration(seconds: wait));
+      });
+    } finally {
+      setState(() => _navLoading = false);
+    }
+  }
+
+  void _stopNav([String? why]) {
+    _reroute.reset();
+    setState(() {
+      _navOn = false;
+      _nav = null;
+      _navMsg = why;
+    });
+  }
+
+  /// 위치·상태가 바뀔 때마다: 목적지가 바뀌었으면(픽업 완료 등) 새 경로, 2회 연속 경로 이탈이면 재탐색.
+  void _navUpdate() {
+    if (!_navOn || !mounted) return;
+    final d = _d;
+    if (d == null) return;
+    final target = _navTargetFor('${d['status']}');
+    if (target == null) return _stopNav('배송이 종료되어 길안내를 마쳤습니다');
+    final nav = _nav;
+    if (nav == null || nav.target != target) {
+      _fetchNav();
+      return;
+    }
+    final here = _currentPosition();
+    if (here != null && _reroute.shouldReroute(nav.progress(here))) _fetchNav();
+    setState(() {});
   }
 
   Future<void> _load() async {
@@ -112,6 +196,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     final shouldRun = d['locationMode'] == 'DEVICE_GPS' && _gpsStates.contains(d['status']);
     if (shouldRun && _reporter == null) {
       _reporter = LocationReporter(api, widget.deliveryId, onRevoked: _load);
+      _reporter!.status.addListener(_navUpdate); // 실 GPS 측정마다 길안내 진행 갱신
       _reporter!.start().then((err) {
         if (err != null) setState(() => _msg = err);
       });
@@ -225,13 +310,19 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       ]),
       body: Column(children: [
         SizedBox(
-          height: 240,
-          child: DeliveryMap(
-            destination: GeoPoint((dest['latitude'] as num).toDouble(), (dest['longitude'] as num).toDouble()),
-            mfc: GeoPoint((mfc['latitude'] as num).toDouble(), (mfc['longitude'] as num).toDouble()),
-            rider: pos == null ? null : GeoPoint((pos['latitude'] as num).toDouble(), (pos['longitude'] as num).toDouble()),
-            riderLabel: '나',
-          ),
+          height: _navOn ? 300 : 240,
+          child: Stack(children: [
+            Positioned.fill(
+              child: DeliveryMap(
+                destination: GeoPoint((dest['latitude'] as num).toDouble(), (dest['longitude'] as num).toDouble()),
+                mfc: GeoPoint((mfc['latitude'] as num).toDouble(), (mfc['longitude'] as num).toDouble()),
+                rider: pos == null ? null : GeoPoint((pos['latitude'] as num).toDouble(), (pos['longitude'] as num).toDouble()),
+                riderLabel: '나',
+                route: _navOn ? _nav?.points : null,
+              ),
+            ),
+            if (_navOn) Positioned(left: 8, right: 8, top: 8, child: _navBanner()),
+          ]),
         ),
         Expanded(
           child: ListView(padding: const EdgeInsets.all(12), children: [
@@ -257,6 +348,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                   : null,
             ),
             _locationStatus(simulated),
+            _navCard(status, mfc, dest, simulated),
             const Divider(),
             Text('포장 ${packages.where((p) => p['status'] == 'HANDED_OVER').length}/${d['packagesReady'] == true ? packages.length : d['expectedPackageCount']} 인계'
                 '${d['packagesReady'] == true ? '' : ' (MFC 포장 준비 중)'}'),
@@ -268,6 +360,87 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           ]),
         ),
       ]),
+    );
+  }
+
+  /// 지도 위 안내 배너: 다음 회전·남은 거리/시간. 경로가 없으면 사유.
+  Widget _navBanner() {
+    final nav = _nav;
+    final here = _currentPosition();
+    String title;
+    String sub;
+    if (nav == null || here == null) {
+      title = _navLoading ? '경로를 찾는 중…' : (_navMsg ?? (here == null ? '현재 위치를 기다리는 중' : '경로 없음'));
+      sub = '';
+    } else {
+      final p = nav.progress(here);
+      title = p.instruction;
+      sub = p.offRoute
+          ? '경로를 벗어났습니다 (${p.offRouteMeters.round()}m) — ${_navLoading ? '재탐색 중' : '계속 벗어나면 재탐색'}'
+          : p.summary;
+      if (_navMsg != null) sub = '$sub\n$_navMsg';
+    }
+    return Material(
+      color: Colors.indigo.shade700,
+      borderRadius: BorderRadius.circular(10),
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          if (sub.isNotEmpty) Text(sub, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+        ]),
+      ),
+    );
+  }
+
+  /// 길안내 버튼: 앱 안 경로 안내 + 카카오내비(이륜차, 음성 안내). 목적지는 상태에 따라 MFC 또는 배송지.
+  Widget _navCard(String status, Map<String, dynamic> mfc, Map<String, dynamic> dest, bool simulated) {
+    final target = _navTargetFor(status);
+    if (target == null || _revoked) return const SizedBox.shrink();
+    final toMfc = target == 'MFC';
+    final p = toMfc ? mfc : dest;
+    final name = toMfc ? '${mfc['name']}' : '배송지';
+    final lat = (p['latitude'] as num).toDouble(), lng = (p['longitude'] as num).toDouble();
+    return Card(
+      margin: const EdgeInsets.only(top: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('길안내 → ${toMfc ? '픽업 MFC' : '배송지'}', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Wrap(spacing: 8, runSpacing: 4, children: [
+            FilledButton.icon(
+              icon: Icon(_navOn ? Icons.close : Icons.navigation),
+              label: Text(_navOn ? '앱 안내 종료' : '앱 안에서 안내'),
+              onPressed: () {
+                if (_navOn) return _stopNav();
+                setState(() {
+                  _navOn = true;
+                  _navMsg = null;
+                  _navRetryAt = null;
+                });
+                _fetchNav();
+              },
+            ),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.two_wheeler),
+              label: const Text('카카오내비'),
+              onPressed: () async {
+                final m = await launchKakaoNavi(name: name, lat: lat, lng: lng);
+                if (m != null) setState(() => _navMsg = m);
+              },
+            ),
+          ]),
+          Text(
+            _nav?.note ?? '앱 안내: 카카오 자동차 경로 기준 · 카카오내비: 이륜차 경로·음성 안내(카카오내비 앱 필요)',
+            style: const TextStyle(color: Colors.grey, fontSize: 11),
+          ),
+          if (simulated)
+            const Text('SIMULATED 배송: 앱 안내는 시뮬레이터 위치 기준, 카카오내비는 휴대폰 실제 위치 기준입니다',
+                style: TextStyle(color: Colors.purple, fontSize: 11)),
+          if (!_navOn && _navMsg != null) Text(_navMsg!, style: const TextStyle(color: Colors.orange, fontSize: 12)),
+        ]),
+      ),
     );
   }
 

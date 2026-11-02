@@ -81,9 +81,7 @@ class _DeliveryMapState extends State<DeliveryMap> {
       if (widget.mfc != null) {
         await c.labelLayer.addPoi(_ll(widget.mfc!), style: await _dotStyle(Colors.orange, 22), text: 'MFC');
       }
-      if (widget.route != null && widget.route!.length >= 2) {
-        await c.routeLayer.addRoute(widget.route!.map(_ll).toList(), RouteStyle(Colors.blue, 8));
-      }
+      await _syncRoute();
       _riderStyle = await _dotStyle(Colors.deepPurple, 30);
       await _syncRider();
       await _initialFit();
@@ -107,6 +105,27 @@ class _DeliveryMapState extends State<DeliveryMap> {
       await _c!.moveCamera(CameraUpdate.fitMapPoints(pts, padding: 80));
     }
     _initialFitDone = true;
+  }
+
+  /// 경로선: [DeliveryMap.route] 가 바뀌면(길안내 재탐색·목적지 변경·종료) 이전 선을 지우고 새로 그린다. 마커와 같은 이유로 직렬화.
+  BaseRoute? _routeLine;
+  Future<void> _routeOp = Future.value();
+
+  Future<void> _syncRoute() {
+    final next = _routeOp.then((_) async {
+      final c = _c;
+      if (c == null) return;
+      if (_routeLine != null) {
+        await c.routeLayer.removeRoute(_routeLine!);
+        _routeLine = null;
+      }
+      final r = widget.route;
+      if (r != null && r.length >= 2) {
+        _routeLine = await c.routeLayer.addRoute(r.map(_ll).toList(), RouteStyle(Colors.blue, 8));
+      }
+    });
+    _routeOp = next.catchError((_) {});
+    return next;
   }
 
   /// 라이더 마커 갱신을 직렬화한다. 지도 준비(_onReady)와 위치 갱신(didUpdateWidget)이 겹치면
@@ -138,6 +157,7 @@ class _DeliveryMapState extends State<DeliveryMap> {
   @override
   void didUpdateWidget(covariant DeliveryMap old) {
     super.didUpdateWidget(old);
+    if (!identical(old.route, widget.route)) _syncRoute();
     final moved = old.rider?.lat != widget.rider?.lat || old.rider?.lng != widget.rider?.lng;
     if (moved) {
       _syncRider().then((_) async {

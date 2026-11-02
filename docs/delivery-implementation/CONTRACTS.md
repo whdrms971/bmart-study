@@ -98,6 +98,18 @@
 ### 위치 점 판정 (`LocationVerdict`)
 `ACCEPTED_LATEST`(최신 반영) · `ACCEPTED_HISTORY`(최신보다 과거=역순, 저장만) · `STALE`(측정 후 P-06 초과 지연) · `DUPLICATE`(같은 seq) · `REJECTED_INVALID`(범위/NaN/음수 정확도/seq·시각 누락) · `REJECTED_FUTURE` · `REJECTED_ANOMALY`(P-07 초과 속도). 최신 위치는 `measuredAt` 이 더 새로운 정상 점으로만 갱신 — 역행 없음.
 
+### 라이더 길안내 경로 (2026-11-02 추가, 모든 프로필)
+
+`GET /api/rider/deliveries/{deliveryId}/navigation?target=MFC|DESTINATION[&lat=&lng=]`
+
+- 권한: 현재 배정된 라이더만(그 외 `403 NOT_ASSIGNED_RIDER`). 종료·취소 배송 `409 DELIVERY_FINISHED`.
+- 목적지: `MFC` 는 `ASSIGNED`·`ARRIVED_AT_MFC` 에서만, `DESTINATION` 은 `PICKED_UP`·`IN_TRANSIT`·`ARRIVED_AT_DESTINATION` 에서만(전달지는 픽업 후 공개). 그 외 `409 NAVIGATION_TARGET_NOT_ACTIVE`.
+- 출발점: `DEVICE_GPS` 배송은 `lat`·`lng`(범위 오류 `400 INVALID_COORDINATE`), 없으면 서버 최신 위치. `SIMULATED_ROUTE` 배송은 **휴대폰 좌표를 무시하고** 서버 최신 위치(시뮬레이터)만 사용. 위치가 없으면 `409 NO_CURRENT_LOCATION`.
+- 응답 `200 {deliveryId, target, routeSource:"KAKAO_DIRECTIONS", note, distanceMeters, durationSeconds, computedAt, originLat, originLng, originSource: DEVICE|SERVER_LATEST, targetLat, targetLng, points:[[lat,lng]…], guides:[{lat, lng, type, guidance, name, distanceMeters, durationSeconds}], cached}`. `guides` 는 카카오 `sections[].guides` 그대로(거리·시간은 이전 안내 지점부터).
+- 유료 API 보호: 같은 배송·목적지·라이더는 `navigation-min-refresh-seconds`(기본 15초, `DELIVERY_NAVIGATION_MIN_REFRESH_S`) 안에 다시 조회하지 않고 직전 결과를 `cached:true` 로 반환. 직전 조회가 실패했으면 `429 NAVIGATION_RATE_LIMITED`(`details.retryAfterSeconds`).
+- 카카오 실패: `503` + 카카오 오류 코드(`KAKAO_QUOTA_EXCEEDED` 등). **직선 경로로 대체하지 않는다.**
+- 길안내 조회는 배송 상태를 바꾸지 않는다(도착·완료는 기존 API 로만).
+
 ### 고객 도착 예외 처리 — 관리자 (`ROLE_ADMIN`, 모든 프로필 · 2026-11-02 추가)
 
 | 요청 | 결과 |

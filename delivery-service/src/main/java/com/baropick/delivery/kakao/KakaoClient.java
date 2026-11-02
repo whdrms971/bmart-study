@@ -39,7 +39,11 @@ public class KakaoClient {
 
     public record LatLng(double lat, double lng) {}
 
-    public record DirectionsResult(int distanceMeters, int durationSeconds, List<LatLng> vertexes, String transId, Instant fetchedAt) {}
+    /** 길찾기 안내 지점(sections[].guides). distance·duration 은 이전 안내 지점부터의 값(카카오 응답 그대로). */
+    public record Guide(double lat, double lng, int type, String guidance, String name, int distanceMeters, int durationSeconds) {}
+
+    public record DirectionsResult(int distanceMeters, int durationSeconds, List<LatLng> vertexes, String transId, Instant fetchedAt,
+                                   List<Guide> guides) {}
 
     public record Place(String name, String address, String roadAddress, double lat, double lng) {}
 
@@ -78,7 +82,15 @@ public class KakaoClient {
             throw fail("directions", "ROUTE_NOT_FOUND", "길찾기 실패 result_code=" + resultCode + " " + r.path("result_msg").asString(""));
         }
         List<LatLng> pts = new ArrayList<>();
+        List<Guide> guides = new ArrayList<>();
         for (JsonNode s : r.path("sections")) {
+            for (JsonNode g : s.path("guides")) {
+                double gLng = g.path("x").asDouble(Double.NaN), gLat = g.path("y").asDouble(Double.NaN);
+                // 안내 지점은 경로선 보조 정보 — 좌표가 이상한 항목만 버리고 경로 자체는 유지한다
+                if (!(gLat >= -90 && gLat <= 90 && gLng >= -180 && gLng <= 180)) continue;
+                guides.add(new Guide(gLat, gLng, g.path("type").asInt(-1), g.path("guidance").asString(""), g.path("name").asString(""),
+                        g.path("distance").asInt(0), g.path("duration").asInt(0)));
+            }
             for (JsonNode road : s.path("roads")) {
                 JsonNode v = road.path("vertexes");
                 if (v.size() % 2 != 0) throw fail("directions", "ROUTE_MALFORMED", "vertexes 좌표쌍 개수 오류");
@@ -93,7 +105,7 @@ public class KakaoClient {
         JsonNode summary = r.path("summary");
         if (pts.size() < 2) throw fail("directions", "ROUTE_MALFORMED", "경로 좌표가 2개 미만입니다");
         return new DirectionsResult(summary.path("distance").asInt(), summary.path("duration").asInt(), pts,
-                root.path("trans_id").asString(null), clock.instant());
+                root.path("trans_id").asString(null), clock.instant(), List.copyOf(guides));
     }
 
     /** 키워드 검색 우선, 결과 없으면 주소 검색. */

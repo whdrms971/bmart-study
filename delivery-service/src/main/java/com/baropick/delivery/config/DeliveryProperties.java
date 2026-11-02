@@ -28,7 +28,7 @@ public record DeliveryProperties(
         if (auth == null) auth = new Auth(null, 720, null);
         if (outbox == null) outbox = new Outbox(null, 2000L);
         if (mfcClient == null) mfcClient = new MfcClient(null);
-        if (policy == null) policy = new Policy(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        if (policy == null) policy = new Policy(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         if (retention == null) retention = new Retention(null, null, false, null);
         if (mfcs == null) mfcs = List.of();
         if (simulation == null) simulation = new Simulation(false, 1000L);
@@ -61,7 +61,9 @@ public record DeliveryProperties(
             /** P-04 배차 가능 시간 판단 시간대 (예: Asia/Seoul) */
             String dispatchTimeZone,
             /** SEC-03 고객 주소 검색 사용자별 분당 최대 호출 수 (2026-11-02 결정 10) */
-            Integer placeSearchPerMinute) {
+            Integer placeSearchPerMinute,
+            /** 라이더 길안내 경로 같은 배송·목적지 재조회 최소 간격(초) [설계 제안 15] — 유료 길찾기 API 보호 */
+            Integer navigationMinRefreshSeconds) {
 
         public static <T> T require(T v, String name) {
             if (v == null) {

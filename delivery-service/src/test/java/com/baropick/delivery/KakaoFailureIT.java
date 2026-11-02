@@ -90,8 +90,11 @@ class KakaoFailureIT extends IntegrationTestBase {
                 send(ex, 200, """
                         {"trans_id":"stub-1","routes":[{"result_code":0,"result_msg":"길찾기 성공",
                           "summary":{"distance":1500,"duration":600},
-                          "sections":[{"roads":[{"vertexes":[%s,%s,%s,%s,%s,%s]}]}]}]}
-                        """.formatted(o[0], o[1], mx, my, d[0], d[1]));
+                          "sections":[{"roads":[{"vertexes":[%s,%s,%s,%s,%s,%s]}],
+                            "guides":[{"name":"출발지","x":%s,"y":%s,"distance":0,"duration":0,"type":100,"guidance":"출발지"},
+                                      {"name":"해운대로","x":%s,"y":%s,"distance":700,"duration":280,"type":1,"guidance":"좌회전"},
+                                      {"name":"목적지","x":%s,"y":%s,"distance":800,"duration":320,"type":101,"guidance":"목적지"}]}]}]}
+                        """.formatted(o[0], o[1], mx, my, d[0], d[1], o[0], o[1], mx, my, d[0], d[1]));
             }
             case QUOTA -> send(ex, 429, "{\"errorType\":\"RateLimitExceeded\",\"message\":\"API limit has been exceeded.\"}");
             case NO_ROUTE -> send(ex, 200, "{\"trans_id\":\"stub-2\",\"routes\":[{\"result_code\":104,\"result_msg\":\"출발지와 도착지가 5 m 이내로 설정된 경우 경로를 탐색할 수 없음\"}]}");
@@ -207,6 +210,84 @@ class KakaoFailureIT extends IntegrationTestBase {
         Resp r = get("C-TEST-01", "/api/customer/places?query=" + java.net.URLEncoder.encode("해운대", StandardCharsets.UTF_8));
         assertThat(r.status()).isEqualTo(503);
         assertThat(r.text("/code")).isEqualTo("KAKAO_QUOTA_EXCEEDED");
+    }
+
+    // ------------------------------------------------------------------ 라이더 길안내
+
+    private Resp nav(String rider, String d, String target, String extra) {
+        return get(rider, "/api/rider/deliveries/" + d + "/navigation?target=" + target + extra);
+    }
+
+    @Test
+    @DisplayName("NAV 배송지 길안내: 카카오 경로·안내 지점 반환, 15초 안 재조회는 캐시(카카오 미호출), 다른 라이더 403, 픽업 후 MFC 안내 409")
+    void navigationRoute() {
+        String d = nearInTransit();
+        String here = "&lat=35.1800&lng=129.0760";
+        int before = calls.get();
+        Resp r = nav("R-TEST-01", d, "DESTINATION", here);
+        assertThat(r.status()).as(r.body().toString()).isEqualTo(200);
+        assertThat(r.text("/routeSource")).isEqualTo("KAKAO_DIRECTIONS");
+        assertThat(r.text("/originSource")).isEqualTo("DEVICE");
+        assertThat(r.body().path("cached").asBoolean()).isFalse();
+        assertThat(r.body().path("distanceMeters").asInt()).isEqualTo(1500);
+        assertThat(r.body().path("points").size()).isEqualTo(3);
+        assertThat(r.body().path("points").get(0).get(0).asDouble()).isEqualTo(35.18, org.assertj.core.data.Offset.offset(1e-6));
+        assertThat(r.body().path("guides").size()).isEqualTo(3);
+        assertThat(r.body().at("/guides/1/guidance").asString()).isEqualTo("좌회전");
+        assertThat(r.body().at("/guides/1/name").asString()).isEqualTo("해운대로");
+        assertThat(r.body().at("/guides/1/distanceMeters").asInt()).isEqualTo(700);
+        assertThat(calls.get()).isEqualTo(before + 1);
+
+        Resp again = nav("R-TEST-01", d, "DESTINATION", "&lat=35.1801&lng=129.0761");
+        assertThat(again.body().path("cached").asBoolean()).isTrue();
+        assertThat(calls.get()).as("15초 안 재조회는 카카오 미호출").isEqualTo(before + 1);
+        mclock().advance(java.time.Duration.ofSeconds(16));
+        assertThat(nav("R-TEST-01", d, "DESTINATION", here).body().path("cached").asBoolean()).isFalse();
+        assertThat(calls.get()).isEqualTo(before + 2);
+
+        assertThat(nav("R-TEST-02", d, "DESTINATION", here).status()).isEqualTo(403);
+        assertThat(nav("C-TEST-01", d, "DESTINATION", here).status()).isEqualTo(403);
+        Resp mfc = nav("R-TEST-01", d, "MFC", here);
+        assertThat(mfc.status()).isEqualTo(409);
+        assertThat(mfc.text("/code")).isEqualTo("NAVIGATION_TARGET_NOT_ACTIVE");
+        assertThat(nav("R-TEST-01", d, "DESTINATION", "&lat=91&lng=129.0").status()).isEqualTo(400);
+        assertThat(nav("R-TEST-01", d, "SOMEWHERE", here).status()).isEqualTo(400);
+    }
+
+    @Test
+    @DisplayName("NAV 카카오 실패 → 503(직선 경로 대체 없음), 직후 재요청은 카카오를 다시 부르지 않고 429, 간격 후 정상 조회")
+    void navigationFailure() {
+        String d = nearInTransit();
+        String here = "&lat=35.1800&lng=129.0760";
+        mode = Mode.QUOTA;
+        Resp r = nav("R-TEST-01", d, "DESTINATION", here);
+        assertThat(r.status()).isEqualTo(503);
+        assertThat(r.text("/code")).isEqualTo("KAKAO_QUOTA_EXCEEDED");
+        assertThat(r.body().has("points")).isFalse();
+        int afterFail = calls.get();
+        Resp limited = nav("R-TEST-01", d, "DESTINATION", here);
+        assertThat(limited.status()).isEqualTo(429);
+        assertThat(limited.text("/code")).isEqualTo("NAVIGATION_RATE_LIMITED");
+        assertThat(calls.get()).isEqualTo(afterFail);
+        mode = Mode.OK;
+        mclock().advance(java.time.Duration.ofSeconds(16));
+        assertThat(nav("R-TEST-01", d, "DESTINATION", here).status()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("NAV 픽업 전: 배송지 길안내 409(전달지 비공개 유지), SIMULATED 배송은 휴대폰 좌표를 출발점으로 쓰지 않음(위치 없으면 409)")
+    void navigationBeforePickup() {
+        String d = remoteDelivery("C-TEST-01", 1);
+        onDuty("R-TEST-01");
+        assign(d, "R-TEST-01");
+        Resp dest = nav("R-TEST-01", d, "DESTINATION", "&lat=35.18&lng=129.07");
+        assertThat(dest.status()).isEqualTo(409);
+        assertThat(dest.text("/code")).isEqualTo("NAVIGATION_TARGET_NOT_ACTIVE");
+        int before = calls.get();
+        Resp mfc = nav("R-TEST-01", d, "MFC", "&lat=35.18&lng=129.07");
+        assertThat(mfc.status()).isEqualTo(409);
+        assertThat(mfc.text("/code")).isEqualTo("NO_CURRENT_LOCATION");
+        assertThat(calls.get()).isEqualTo(before);
     }
 
     @Test

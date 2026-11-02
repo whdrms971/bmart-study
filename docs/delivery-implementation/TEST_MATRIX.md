@@ -17,7 +17,7 @@
 
 | ID | 실행 | 결과 |
 |---|---|---|
-| E1 | `delivery-service\gradlew.bat test` (11개 클래스) | **74건** 통과, 실패 0 (이전 44건 + 식별자 검증 1 + 주소 검색 호출 제한 1 + `ArrivalPolicyIT` 16 + `SimulationIT` 1 + `KakaoFailureIT` 5 + `ProdProfileIT` 1 + `DispatchHoursTest` 3 + `DispatchHoursIT` 1 + `RetentionIT` 1) |
+| E1 | `delivery-service\gradlew.bat test` (11개 클래스) | **77건** 통과, 실패 0 (이전 44건 + 식별자 검증 1 + 주소 검색 호출 제한 1 + 라이더 길안내 3 + `ArrivalPolicyIT` 16 + `SimulationIT` 1 + `KakaoFailureIT` 5 + `ProdProfileIT` 1 + `DispatchHoursTest` 3 + `DispatchHoursIT` 1 + `RetentionIT` 1) |
 | E2 | `flutter analyze` / `flutter test` (delivery_common, customer_app, rider_app) | 이슈 0, 테스트 16건 통과 (delivery_common 6: 오류 문구 3 포함 / customer_app 1 / rider_app 9: 도착 판정 5·길안내 링크 3·위젯 1) |
 | E3 | `simulator-admin` `npm run typecheck` / `npm run build` | 통과 |
 | E4 | `scripts\e2e-mode-a.ps1 -Rate 10` (FIXTURE) | 통과 — `reports/runs/mode-a-fixture-20261102-092955.md` |
@@ -165,3 +165,4 @@
 | GitHub Actions CI (`.github/workflows/delivery-ci.yml`) | ✅ 자동 | 2026-11-02 첫 실행(run 41402923200, 커밋 `c04421d`) 4개 작업 모두 성공: backend(h2)·backend(postgres)·flutter(analyze+test)·simulator-admin(build). 배포 단계 없음(테스트만) |
 | 주소 검색 호출 제한 (SEC-03, 분당 10회) | ✅ 자동 / ✅ 에뮬 | E1 `KakaoFailureIT.placeSearchRateLimit`: 10회 200 → 11번째 429 `RATE_LIMITED`(retryAfterSeconds 1~61, 카카오 미호출) → 다른 고객 200 → 30초 뒤 여전히 429 → 61초 뒤 200. `ProdProfileIT` 운영 값 10 확인. 개발 서버(카카오 실호출) API 10회 200 → 11번째 429. E7: 고객 앱 테스트 주문 화면에서 검색 → "주소 검색은 1분에 10회까지 가능합니다. 41초 후 다시 시도하세요" 표시 |
 | 주문부터 완료까지 전체 흐름 재확인 (커밋 `ac71fd1`) | ✅ 에뮬 | E7: 고객 앱 테스트 주문 `ORD-MVYXBE3M6CTRFD`(원거리 MFC, 포장 2개) → 라이더 앱 제안 수락 → MFC 도착 → Mock MFC 포장 완료 → QR 1/2 입력 시 배송 출발 버튼 없음 + 서버 `409 HANDOVER_NOT_COMPLETED` → 2/2 인계 후 전달지 공개 → 배송 출발 → 시뮬레이터 KAKAO_DIRECTIONS 3,574m·10× (72점 전송·72점 반영) → 고객 지도 실시간 마커·ETA·SIMULATED 표시 → 경로 끝 후에도 `IN_TRANSIT` 유지(자동 완료 없음) → 고객 도착(4.1m) → 비대면·사진 촬영 → 전달 완료 → 고객 앱 "배송 완료·위치 공유 종료" → `DeliveryCompleted` 이벤트 Mock OMS 수신, 주문 `COMPLETED` → 완료 후 위치 전송 `409`. 증빙 파일 `data/proofs/<deliveryId>/` 저장 확인 |
+| 라이더 앱 안 길안내 + 카카오내비 (2026-11-02) | ✅ 자동 / ✅ 에뮬 / ⬜ 실기기 | E1 `KakaoFailureIT` NAV 3건: 경로·안내 지점 반환, 15초 안 재조회 캐시(카카오 미호출)·16초 뒤 재조회, 다른 라이더·고객 403, 픽업 후 MFC 안내 409, 픽업 전 배송지 안내 409, SIMULATED 위치 없음 409(휴대폰 좌표 무시), 좌표·target 오류 400, 카카오 쿼터 초과 503(직선 대체 없음) → 직후 429(카카오 미호출) → 간격 후 200. E2 `navigation_test` 7건: 경로상 거리, 다음 안내·남은 거리/시간, 50m 이탈 판정, 2회 연속 재탐색, 목적지 근처. E7(카카오 실경로): 배송 중 "앱 안에서 안내" → 지도 경로선 + "1.5km 앞 신해운대역 기장 방면으로 왼쪽 직진 · 운촌삼거리 / 남은 3.2km · 약 12분" → 이동에 따라 1.3→1.1km·남은 거리 감소(60초 동안 길찾기 추가 호출 없음) → 경로 끝 "목적지 근처입니다", 배송 상태는 `IN_TRANSIT` 유지 → 완료 후 길안내 409. "카카오내비" 버튼: 에뮬레이터에 앱 없음 → 설치 페이지 열림 + 안내 문구. **미검증:** 실 GPS 배송의 경로 이탈 재탐색(에뮬레이터 라이더 위치 권한 없음), 카카오내비 앱 실제 실행·이륜차 안내 |
