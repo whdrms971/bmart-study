@@ -47,6 +47,11 @@ delivery:
     relay-interval-ms: 2000
   # 운영 정책값은 의도적으로 기본값 없음 (DECISIONS.md P-01~P-14). 미설정 시 해당 기능 차단.
   policy: {}
+  # 고객 도착 판정 (2026-11-02 결정 정책, DECISIONS.md A-01~A-03). 모든 프로필 공통. 환경별 조정은 외부 설정으로 덮어쓴다.
+  arrival:
+    max-distance-meters: ${DELIVERY_ARRIVAL_MAX_DISTANCE_M:150}
+    max-location-age-seconds: ${DELIVERY_ARRIVAL_MAX_LOCATION_AGE_S:30}
+    max-accuracy-meters: ${DELIVERY_ARRIVAL_MAX_ACCURACY_M:50}
   mfcs: []
   simulation:
     enabled: false

@@ -47,8 +47,15 @@ public class TrackingQueryService {
     private final DeliveryProperties.Policy policy;
     private final Clock clock;
 
+    private final com.baropick.delivery.execution.ArrivalPolicy arrivalPolicy;
+    private final com.baropick.delivery.domain.ArrivalExceptionRepository arrivalExceptions;
+
     public TrackingQueryService(DeliveryRepository deliveries, DeliveryPackageRepository packages, LatestLocationRepository latest,
-                                DeliveryEtaRepository etas, MfcRegistry mfcs, DeliveryProperties props, Clock clock) {
+                                DeliveryEtaRepository etas, MfcRegistry mfcs, DeliveryProperties props, Clock clock,
+                                com.baropick.delivery.execution.ArrivalPolicy arrivalPolicy,
+                                com.baropick.delivery.domain.ArrivalExceptionRepository arrivalExceptions) {
+        this.arrivalPolicy = arrivalPolicy;
+        this.arrivalExceptions = arrivalExceptions;
         this.deliveries = deliveries;
         this.packages = packages;
         this.latest = latest;
@@ -93,7 +100,23 @@ public class TrackingQueryService {
         RiderPosition pos = latest.findById(d.getId()).map(this::position).orElse(null);
         return new RiderDelivery(d.getId(), d.getOrderId(), d.getStatus(), TrackingViews.label(d.getStatus()), d.getLocationMode().name(),
                 d.getLocationMode() == LocationMode.SIMULATED_ROUTE, mfc, destination(d), d.getCustomerNote(), d.getExpectedPackageCount(),
-                d.isPackagesReady(), pv, pos, eta(d), d.getAssignmentVersion(), d.getUpdatedAt());
+                d.isPackagesReady(), pv, pos, eta(d), d.getAssignmentVersion(), d.getUpdatedAt(), arrivalView(d));
+    }
+
+    /** 배송 중·배송지 도착 상태에서만 도착 판정 정보를 준다. 정책 미설정이면 null(앱은 서버 판정 결과만 따른다). */
+    private TrackingViews.ArrivalView arrivalView(Delivery d) {
+        if (d.getStatus() != DeliveryStatus.IN_TRANSIT && d.getStatus() != DeliveryStatus.ARRIVED_AT_DESTINATION) return null;
+        var c = arrivalPolicy.evaluate(d);
+        if (c.maxDistanceMeters() == null || c.maxLocationAgeSeconds() == null || c.maxAccuracyMeters() == null) return null;
+        var check = d.getStatus() == DeliveryStatus.IN_TRANSIT
+                ? new TrackingViews.ArrivalCheckView(c.allowed(), c.code().name(), c.message(), c.distanceMeters(), c.accuracyMeters(),
+                        c.locationAgeSeconds(), c.locationSource())
+                : null;
+        var ex = arrivalExceptions.findFirstByDeliveryIdOrderByRequestedAtDesc(d.getId())
+                .map(e -> new TrackingViews.ArrivalExceptionView(e.getId(), e.getReasonCode().name(), e.getStatus().name(), e.getRequestedAt(),
+                        e.getDecisionNote(), e.getDecidedAt()))
+                .orElse(null);
+        return new TrackingViews.ArrivalView(c.maxDistanceMeters(), c.maxLocationAgeSeconds(), c.maxAccuracyMeters(), check, ex);
     }
 
     public TrackingViews.Offer offerView(DispatchOffer o) {

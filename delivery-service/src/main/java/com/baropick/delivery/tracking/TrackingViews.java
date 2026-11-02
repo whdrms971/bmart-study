@@ -36,7 +36,20 @@ public final class TrackingViews {
     public record RiderDelivery(String deliveryId, String orderId, DeliveryStatus status, String statusLabel, String locationMode,
                                 boolean simulated, Mfc mfc, Destination destination, String customerNote, int expectedPackageCount,
                                 boolean packagesReady, List<PackageView> packages, RiderPosition lastLocation, Eta eta,
-                                int assignmentVersion, Instant updatedAt) {}
+                                int assignmentVersion, Instant updatedAt, ArrivalView arrival) {}
+
+    /**
+     * 고객 도착 판정 정보 (배송 중일 때만). 앱은 이 정책값으로 자체 사전 판정을 하고, 서버가 같은 판정으로 최종 검증한다.
+     * check: 서버 최신 위치 기준 판정 / exception: 가장 최근 예외 요청(없으면 null)
+     */
+    public record ArrivalView(double maxDistanceMeters, int maxLocationAgeSeconds, double maxAccuracyMeters, ArrivalCheckView check,
+                              ArrivalExceptionView exception) {}
+
+    public record ArrivalCheckView(boolean allowed, String code, String message, Double distanceMeters, Double accuracyMeters,
+                                   Long locationAgeSeconds, String locationSource) {}
+
+    public record ArrivalExceptionView(String exceptionId, String reasonCode, String status, Instant requestedAt, String decisionNote,
+                                       Instant decidedAt) {}
 
     public record Offer(String offerId, String deliveryId, String orderId, String status, Instant offeredAt, Instant expiresAt,
                         long remainingSeconds, Mfc mfc, String destinationAddress, double straightDistanceMeters,

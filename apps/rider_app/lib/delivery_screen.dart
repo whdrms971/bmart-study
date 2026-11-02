@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'arrival_check.dart';
 import 'location_reporter.dart';
 import 'navigation_links.dart';
 import 'scan_screen.dart';
@@ -52,7 +53,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         final data = m['data'];
         if (data is Map && data['deliveryId'] == widget.deliveryId) {
           if (m['type'] == 'ASSIGNMENT_REVOKED') return _onRevoked();
-          if (m['type'] == 'DELIVERY_UPDATED') setState(() => _d = Map<String, dynamic>.from(data));
+          if (m['type'] == 'DELIVERY_UPDATED') _setDelivery(Map<String, dynamic>.from(data));
           _syncReporter();
         }
       },
@@ -78,10 +79,18 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     });
   }
 
+  /// 상태가 바뀌면 이전 단계의 안내 메시지를 지운다 (예: 예외 승인으로 배송지 도착 전환).
+  void _setDelivery(Map<String, dynamic> d) {
+    setState(() {
+      if (_d != null && _d!['status'] != d['status']) _msg = null;
+      _d = d;
+    });
+  }
+
   Future<void> _load() async {
     try {
       final d = await api.get('/api/rider/deliveries/${widget.deliveryId}') as Map<String, dynamic>;
-      setState(() => _d = d);
+      _setDelivery(d);
       _syncReporter();
     } on ApiException catch (e) {
       if (e.status == 403) return _onRevoked();
@@ -295,9 +304,31 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       case 'PICKED_UP':
         return [FilledButton(onPressed: b ? null : () => _act(() => api.post('/api/rider/deliveries/$id/start')), child: const Text('배송 출발'))];
       case 'IN_TRANSIT':
+        final eval = _arrivalEval(d);
+        final policy = ArrivalPolicyValues.fromJson(d['arrival'] as Map<String, dynamic>?);
+        final ex = (d['arrival'] as Map<String, dynamic>?)?['exception'] as Map<String, dynamic>?;
+        final pending = ex != null && ex['status'] == 'PENDING';
+        final simulated = d['simulated'] == true;
         return [
-          FilledButton(onPressed: b ? null : () => _act(() => api.post('/api/rider/deliveries/$id/arrive-destination')), child: const Text('고객 도착')),
+          if (policy != null)
+            Text('도착 가능 범위: 배송지 ${policy.maxDistanceMeters.round()}m 이내 · 위치 ${policy.maxLocationAgeSeconds}초 이내 · 정확도 ${policy.maxAccuracyMeters.round()}m 이하',
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          if (eval != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(eval.message, style: TextStyle(color: eval.allowed ? Colors.green.shade700 : Colors.orange.shade800)),
+            ),
+          // 실 GPS: 버튼을 누르면 즉시 재측정·전송 후 앱 판정 → 서버 최종 판정. 시뮬레이션: 서버 판정이 허용일 때만 활성
+          FilledButton(
+              onPressed: b || pending || (simulated && eval?.allowed != true) ? null : _arrive, child: const Text('고객 도착')),
           const Text('도착 버튼은 직접 눌러야 합니다 (GPS 도착만으로 자동 처리하지 않음)', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          if (eval != null && !eval.allowed) ...[
+            OutlinedButton.icon(onPressed: b ? null : _remeasure, icon: const Icon(Icons.my_location), label: const Text('위치 다시 측정')),
+            if (!pending)
+              TextButton.icon(onPressed: b ? null : _requestException, icon: const Icon(Icons.report_problem_outlined),
+                  label: const Text('도착 예외 요청 (관리자 승인)')),
+          ],
+          if (ex != null) _exceptionStatus(ex),
         ];
       case 'ARRIVED_AT_DESTINATION':
         return [
@@ -325,4 +356,114 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
   Future<void> _release() => _act(() => api.post('/api/rider/deliveries/${widget.deliveryId}/release', {'reason': '라이더 배차취소'}),
       ok: '배차를 취소했습니다');
+
+  // ------------------------------------------------------------------ 고객 도착 (DECISIONS.md A-01~A-04)
+
+  /// 앱 사전 판정. 실 GPS 는 단말 마지막 위치로 직접 판정, SIMULATED_ROUTE 는 서버 위치·판정을 따른다.
+  ArrivalEval? _arrivalEval(Map<String, dynamic> d) {
+    final a = d['arrival'] as Map<String, dynamic>?;
+    final policy = ArrivalPolicyValues.fromJson(a);
+    if (a == null || policy == null) return null;
+    if (d['simulated'] == true) return fromServerCheck(a['check'] as Map<String, dynamic>?);
+    final dest = d['destination'] as Map<String, dynamic>;
+    final p = _reporter?.lastPosition;
+    return evaluateArrival(
+      policy: policy,
+      destLat: (dest['latitude'] as num).toDouble(),
+      destLng: (dest['longitude'] as num).toDouble(),
+      now: DateTime.now(),
+      lat: p?.latitude,
+      lng: p?.longitude,
+      accuracyMeters: p?.accuracy,
+      measuredAt: p?.timestamp,
+    );
+  }
+
+  /// 재측정·전송. 성공 null, 실패 시 사유.
+  Future<String?> _measure() async {
+    final r = _reporter;
+    if (r == null) return '위치 수집이 시작되지 않았습니다 (위치 권한 확인)';
+    return r.measureNow();
+  }
+
+  Future<void> _arrive() async {
+    final d = _d;
+    if (d == null) return;
+    if (d['simulated'] != true) {
+      // 정차 중에는 새 위치가 오지 않으므로 누를 때 재측정·전송
+      setState(() => _busy = true);
+      final err = await _measure();
+      setState(() => _busy = false);
+      final eval = _arrivalEval(d);
+      if (err != null || eval == null || !eval.allowed) {
+        setState(() {
+          _msgOk = false;
+          _msg = err ?? eval?.message ?? '도착 판정 정보를 불러오지 못했습니다';
+        });
+        return;
+      }
+    }
+    await _act(() => api.post('/api/rider/deliveries/${widget.deliveryId}/arrive-destination'), ok: '고객 도착 처리 완료');
+  }
+
+  Future<void> _remeasure() async {
+    if (_d?['simulated'] == true) {
+      await _load(); // 시뮬레이션: 서버 위치로 다시 판정
+      return;
+    }
+    setState(() => _busy = true);
+    final err = await _measure();
+    setState(() {
+      _busy = false;
+      _msgOk = err == null;
+      _msg = err ?? '위치를 다시 측정했습니다';
+    });
+    await _load();
+  }
+
+  Future<void> _requestException() async {
+    String reason = 'GPS_ERROR';
+    final note = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: const Text('도착 예외 요청'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('정상 판정이 불가능한 사유를 선택하세요. 관리자 승인 후 도착 처리됩니다.', style: TextStyle(fontSize: 13)),
+              RadioGroup<String>(
+                groupValue: reason,
+                onChanged: (v) => setD(() => reason = v ?? reason),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  for (final e in arrivalExceptionReasons.entries)
+                    RadioListTile<String>(dense: true, contentPadding: EdgeInsets.zero, value: e.key, title: Text(e.value)),
+                ]),
+              ),
+              TextField(controller: note, maxLength: 300, decoration: const InputDecoration(labelText: '상세 내용 (기타 사유는 필수)')),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('요청')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    await _act(() => api.post('/api/rider/deliveries/${widget.deliveryId}/arrival-exceptions',
+        {'reasonCode': reason, 'note': note.text.trim().isEmpty ? null : note.text.trim()}), ok: '도착 예외를 요청했습니다. 관리자 승인을 기다리세요');
+    await _load();
+  }
+
+  Widget _exceptionStatus(Map<String, dynamic> ex) {
+    final reason = arrivalExceptionReasons[ex['reasonCode']] ?? '${ex['reasonCode']}';
+    final (text, color) = switch ('${ex['status']}') {
+      'PENDING' => ('도착 예외 요청 중 ($reason) — 관리자 승인 대기', Colors.orange.shade800),
+      'APPROVED' => ('도착 예외 승인됨: ${ex['decisionNote'] ?? ''}', Colors.green.shade700),
+      'REJECTED' => ('도착 예외 반려: ${ex['decisionNote'] ?? ''}', Colors.red.shade700),
+      _ => ('도착 예외 요청 무효 처리됨', Colors.grey),
+    };
+    return Padding(padding: const EdgeInsets.only(top: 6), child: Text(text, style: TextStyle(color: color)));
+  }
 }

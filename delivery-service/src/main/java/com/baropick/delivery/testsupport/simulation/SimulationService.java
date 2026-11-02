@@ -68,7 +68,12 @@ public class SimulationService {
     public record CreateRequest(String deliveryId, String riderId, SimRoute.Source routeSource, String fixtureId, Integer rate,
                                 Double speedMps, Long seed, List<FaultSpec> faults) {}
 
-    public record Counters(long ticks, long generated, long sent, long acceptedLatest, long history, long duplicate, long rejected, long stale) {}
+    /** dwellSent: 경로 끝 도달(FINISHED) 이후 배송지 정차 위치 전송 수. sent 에는 포함하지 않는다. */
+    public record Counters(long ticks, long generated, long sent, long acceptedLatest, long history, long duplicate, long rejected, long stale,
+                           long dwellSent) {}
+
+    /** 경로 끝 도달 후 정차 위치를 계속 보내는 최대 시간(실시간). 무기한 전송 방지. */
+    static final java.time.Duration DWELL_MAX = java.time.Duration.ofMinutes(30);
 
     public record LogEntry(Instant realAt, long virtualMs, String type, String detail) {}
 
@@ -79,7 +84,7 @@ public class SimulationService {
                          int rate, double speedMps, long seed, double progressedMeters, double totalMeters, double progressFraction,
                          long virtualElapsedMs, Instant createdAt, Instant startedAt, Instant lastSentAt, double[] lastPosition,
                          boolean connected, boolean stopped, String lastError, String deliveryStatus, Counters counters,
-                         List<FaultSpec> plannedFaults, List<LogEntry> recentLog, String label) {}
+                         List<FaultSpec> plannedFaults, List<LogEntry> recentLog, String label, boolean dwelling) {}
 
     private final class Run {
         final String scenarioId;
@@ -104,6 +109,9 @@ public class SimulationService {
         String lastError;
         ScheduledFuture<?> future;
         long ticks, generated, sent, acceptedLatest, history, duplicate, rejected, stale;
+        boolean dwelling;
+        Instant dwellUntil;
+        long dwellSent;
         final Deque<LogEntry> recent = new ArrayDeque<>();
 
         Run(String scenarioId, CreateRequest r, int rate, Instant now) {
@@ -283,6 +291,10 @@ public class SimulationService {
         Run run = get(id);
         synchronized (run) {
             if (run.state == State.STOPPED) return status(run);
+            if (run.state == State.FINISHED && run.dwelling) {
+                endDwell(run, "수동 종료");
+                return status(run);
+            }
             requireState(run, State.CREATED, State.READY, State.RUNNING, State.PAUSED);
             terminate(run, State.STOPPED, reason == null ? "수동 종료" : reason);
             return status(run);
@@ -300,6 +312,7 @@ public class SimulationService {
             if (other != null && !other.equals(id)) throw ApiException.conflict("DUPLICATE_RUN", "같은 배송에 다른 활성 시나리오가 있습니다: " + other);
             cancelFuture(run);
             run.ticks = run.generated = run.sent = run.acceptedLatest = run.history = run.duplicate = run.rejected = run.stale = 0;
+            run.dwelling = false; run.dwellUntil = null; run.dwellSent = 0;
             run.lastSentAt = null; run.lastPosition = null; run.lastError = null; run.startedAt = null; run.assignmentVersion = null;
             run.connected = true;
             run.state = run.route == null ? State.CREATED : State.READY;
@@ -338,7 +351,8 @@ public class SimulationService {
         cancelFuture(run);
         run.future = executor.scheduleAtFixedRate(() -> {
             try {
-                tick(run.scenarioId);
+                if (run.state == State.FINISHED) dwellTick(run.scenarioId);
+                else tick(run.scenarioId);
             } catch (RuntimeException e) {
                 log.warn("시뮬레이션 틱 오류 {}: {}", run.scenarioId, e.getMessage());
             }
@@ -386,10 +400,53 @@ public class SimulationService {
                 }
             }
             if (out.finished()) {
-                terminate(run, State.FINISHED, "경로 끝 도달 — 배송 완료 아님. 라이더 앱에서 고객 도착·증빙 완료 필요");
+                // 재생은 끝났지만(FINISHED) 스케줄은 유지해 배송지 정차 위치를 계속 보낸다(dwellTick).
+                run.state = State.FINISHED;
+                activeByDelivery.remove(run.deliveryId, run.scenarioId);
+                run.dwelling = true;
+                run.dwellUntil = clock.instant().plus(DWELL_MAX);
+                log(run, "FINISHED", "경로 끝 도달 — 배송 완료 아님. 배송지 정차 위치 전송 시작(최대 " + DWELL_MAX.toMinutes()
+                        + "분, 완료·재배정·취소 시 중단). 라이더 앱에서 고객 도착·증빙 완료 필요");
             }
             return status(run);
         }
+    }
+
+    /**
+     * FINISHED 이후 배송지 정차 위치 1건 전송 (자동 스케줄러 또는 테스트가 직접 호출).
+     * 고객 도착 판정은 최신 위치가 30초 이내여야 하므로, 정차한 실제 라이더처럼 위치를 계속 보낸다.
+     * 위치 수신이 거부되면(완료·취소·재배정) 즉시 중단한다. 도착 판정을 우회하지 않는다 — 같은 수집·검증 경로를 지난다.
+     */
+    public Status dwellTick(String id) {
+        Run run = get(id);
+        synchronized (run) {
+            if (run.state != State.FINISHED || !run.dwelling) {
+                if (run.state == State.FINISHED) cancelFuture(run);
+                return status(run);
+            }
+            if (clock.instant().isAfter(run.dwellUntil)) {
+                endDwell(run, "정차 위치 전송 최대 시간 초과");
+                return status(run);
+            }
+            RoutePlayback.Emission e = run.playback.dwell(tickRealMs * run.rate);
+            Instant virtualNow = run.virtualEpoch.plusMillis(e.virtualMs());
+            try {
+                injector.inject(run.scenarioId, run.deliveryId, run.riderId, run.assignmentVersion, virtualNow,
+                        List.of(new LocationPoint(e.seq(), e.lat(), e.lng(), e.accuracyMeters(), null, null, virtualNow)));
+                run.dwellSent++;
+                run.lastSentAt = clock.instant();
+                run.lastPosition = new double[] {e.lat(), e.lng()};
+            } catch (ApiException ex) {
+                endDwell(run, "주입 거부 " + ex.code() + " → 정차 위치 전송 중단");
+            }
+            return status(run);
+        }
+    }
+
+    private void endDwell(Run run, String reason) {
+        run.dwelling = false;
+        cancelFuture(run);
+        log(run, "DWELL_END", reason);
     }
 
     /** 배송 상태 변경(취소·완료·재배정) 커밋 후 활성 재생기 권한 회수. */
@@ -462,8 +519,9 @@ public class SimulationService {
                 pb == null ? run.requestedSpeed : pb.speedMps(), run.seed, pb == null ? 0 : pb.distance(), total,
                 pb == null ? 0 : pb.progressFraction(), pb == null ? 0 : pb.virtualMs(), run.createdAt, run.startedAt, run.lastSentAt,
                 run.lastPosition, run.connected, pb != null && pb.stopped(), run.lastError, ds,
-                new Counters(run.ticks, run.generated, run.sent, run.acceptedLatest, run.history, run.duplicate, run.rejected, run.stale),
-                run.faults, recent, label);
+                new Counters(run.ticks, run.generated, run.sent, run.acceptedLatest, run.history, run.duplicate, run.rejected, run.stale,
+                        run.dwellSent),
+                run.faults, recent, label, run.dwelling);
     }
 
     private Run get(String id) {

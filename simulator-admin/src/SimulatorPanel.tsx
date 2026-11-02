@@ -347,6 +347,9 @@ export function SimulatorPanel() {
                 <th>가상 경과</th><td>{(status.virtualElapsedMs / 1000).toFixed(0)}s (실시간 아님)</td></tr>
               <tr><th>배속·속도</th><td>{status.rate}× · {status.speedMps.toFixed(1)} m/s</td>
                 <th>마지막 전송(실시각)</th><td>{status.lastSentAt ? new Date(status.lastSentAt).toLocaleTimeString() : '—'}</td></tr>
+              {status.state === 'FINISHED' && (
+                <tr><th>배송지 정차</th><td colSpan={3}>{status.dwelling ? '정차 위치 전송 중' : '정차 위치 전송 종료'} ({status.counters.dwellSent}건) — 고객 도착은 배송지 150m 이내·위치 30초 이내에서만 허용</td></tr>
+              )}
               <tr><th>전송/최신반영</th><td>{status.counters.sent} / {status.counters.acceptedLatest}</td>
                 <th>역순·중복·거부·지연</th><td>{status.counters.history} · {status.counters.duplicate} · {status.counters.rejected} · {status.counters.stale}</td></tr>
               <tr><th>고객 화면 위치</th><td colSpan={3}>{detail?.customer.rider

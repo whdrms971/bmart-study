@@ -19,7 +19,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Map<String, Object>> api(ApiException e) {
-        return ResponseEntity.status(e.status()).body(Map.of("code", e.code(), "message", e.getMessage()));
+        if (e.details().isEmpty()) {
+            return ResponseEntity.status(e.status()).body(Map.of("code", e.code(), "message", e.getMessage()));
+        }
+        return ResponseEntity.status(e.status()).body(Map.of("code", e.code(), "message", e.getMessage(), "details", e.details()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

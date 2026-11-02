@@ -9,6 +9,9 @@ spring:
     password: ""
   flyway:
     locations: classpath:db/migration,classpath:db/testsupport
+    # testsupport(Mock) 마이그레이션은 V1000+ 대역을 쓴다. 이후 추가되는 운영 마이그레이션(V2, V3 …)이
+    # 기존 local-test DB 에 "버전 역순"으로 적용될 수 있도록 local-test 에서만 허용. 운영(prod)은 db/migration 만 사용하므로 해당 없음.
+    out-of-order: true
 
 delivery:
   outbox:

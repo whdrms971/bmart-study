@@ -33,7 +33,7 @@ class DeliveryLifecycleIT extends IntegrationTestBase {
         String d = remoteDelivery("C-TEST-01", 2);
         pickUp(d, "R-TEST-01");
         assertThat(post("R-TEST-01", "/api/rider/deliveries/" + d + "/start", null).status()).isEqualTo(200);
-        assertThat(post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null).status()).isEqualTo(200);
+        assertThat(arriveHere("R-TEST-01", d).status()).isEqualTo(200);
         Resp c = complete("R-TEST-01", d, "done-1", fakeJpeg());
         assertThat(c.status()).as(c.body().toString()).isEqualTo(200);
         assertThat(c.text("/result")).isEqualTo("COMPLETED");
@@ -230,7 +230,7 @@ class DeliveryLifecycleIT extends IntegrationTestBase {
         post("R-TEST-01", "/api/rider/deliveries/" + d + "/start", null);
         Resp early = complete("R-TEST-01", d, "r1", fakeJpeg());
         assertThat(early.text("/code")).isEqualTo("INVALID_STATE");
-        post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null);
+        assertThat(arriveHere("R-TEST-01", d).status()).isEqualTo(200);
         assertThat(complete("R-TEST-01", d, "r1", null).text("/code")).isEqualTo("PROOF_PHOTO_REQUIRED");
         assertThat(complete("R-TEST-01", d, "r1", "not an image at all".getBytes()).text("/code")).isEqualTo("PROOF_PHOTO_INVALID");
         Resp a = complete("R-TEST-01", d, "r1", fakeJpeg());
@@ -279,7 +279,7 @@ class DeliveryLifecycleIT extends IntegrationTestBase {
         pickUp(d, "R-TEST-01");
         relay.relay(); // DeliveryPickedUp 먼저 정상 전달 (이후 장애 주입은 DeliveryCompleted 에만 적용)
         post("R-TEST-01", "/api/rider/deliveries/" + d + "/start", null);
-        post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null);
+        assertThat(arriveHere("R-TEST-01", d).status()).isEqualTo(200);
         assertThat(complete("R-TEST-01", d, "c-" + d, fakeJpeg()).status()).isEqualTo(200);
         return d;
     }
@@ -302,7 +302,7 @@ class DeliveryLifecycleIT extends IntegrationTestBase {
         assertThat(get("C-TEST-01", "/api/customer/orders/" + orderId + "/tracking").at("/deliveries").size()).isEqualTo(2);
         pickUp(d1, "R-TEST-01");
         post("R-TEST-01", "/api/rider/deliveries/" + d1 + "/start", null);
-        post("R-TEST-01", "/api/rider/deliveries/" + d1 + "/arrive-destination", null);
+        assertThat(arriveHere("R-TEST-01", d1).status()).isEqualTo(200);
         Resp done = complete("R-TEST-01", d1, "split-1", fakeJpeg());
         assertThat(done.status()).as(done.body().toString()).isEqualTo(200);
         relay.relay();
@@ -321,7 +321,7 @@ class DeliveryLifecycleIT extends IntegrationTestBase {
         String d = remoteDelivery("C-TEST-01", 1);
         pickUp(d, "R-TEST-01");
         post("R-TEST-01", "/api/rider/deliveries/" + d + "/start", null);
-        post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null);
+        assertThat(arriveHere("R-TEST-01", d).status()).isEqualTo(200);
         mclock().advance(Duration.ofHours(6));
         dispatch.expireDueOffers();
         relay.relay();

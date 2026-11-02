@@ -82,7 +82,7 @@ public abstract class IntegrationTestBase {
 
     private static final List<String> TABLES = List.of("rider_location", "delivery_latest_location", "delivery_eta", "delivery_proof",
             "outbox_event", "idempotency_record", "inbox_event", "delivery_status_history", "dispatch_offer", "dispatch_attempt",
-            "delivery_package", "delivery", "mock_oms_inbox", "mock_oms_order_delivery", "mock_oms_order", "mock_mfc_package");
+            "delivery_package", "delivery_arrival_exception", "delivery", "mock_oms_inbox", "mock_oms_order_delivery", "mock_oms_order", "mock_mfc_package");
 
     @BeforeEach
     void setUpHttp() {
@@ -221,6 +221,48 @@ public abstract class IntegrationTestBase {
         b[0] = (byte) 0xFF; b[1] = (byte) 0xD8; b[2] = (byte) 0xFF; b[3] = (byte) 0xE0;
         b[62] = (byte) 0xFF; b[63] = (byte) 0xD9;
         return b;
+    }
+
+    @Autowired protected com.baropick.delivery.tracking.LocationIngestService ingestService;
+    private final Map<String, Long> placeSeq = new HashMap<>();
+
+    /**
+     * 배송의 최신 위치를 지정 좌표로 만든다. 실 GPS 배송은 라이더 위치 API, SIMULATED_ROUTE 배송은 시뮬레이터와 같은 서버 내부 수집 경로.
+     * 반환: 수집 판정(ACCEPTED_LATEST 등).
+     */
+    protected String placeAt(String deliveryId, String rider, double lat, double lng, Double accuracy, Instant measuredAt) {
+        long seq = placeSeq.merge(deliveryId, 1L, Long::sum) + 1000;
+        Resp v = get(rider, "/api/rider/deliveries/" + deliveryId);
+        boolean simulated = v.body().at("/simulated").asBoolean();
+        if (simulated) {
+            var res = ingestService.ingest(new com.baropick.delivery.tracking.LocationIngestService.IngestContext(deliveryId, rider,
+                    com.baropick.delivery.domain.LocationMode.SIMULATED_ROUTE, "TEST-HELPER", measuredAt, v.body().at("/assignmentVersion").asInt()),
+                    List.of(new com.baropick.delivery.tracking.LocationIngestService.LocationPoint(seq, lat, lng, accuracy, null, null, measuredAt)));
+            return res.points().get(0).verdict().name();
+        }
+        Map<String, Object> p = point(seq, lat, lng, measuredAt);
+        p.put("accuracyMeters", accuracy);
+        Resp r = post(rider, "/api/rider/deliveries/" + deliveryId + "/locations", Map.of("points", List.of(p)));
+        assertThat(r.status()).as("locations " + r.body()).isEqualTo(200);
+        return r.body().at("/points/0/verdict").asString();
+    }
+
+    /** 배송지 좌표 (라이더 화면 기준). */
+    protected double[] destinationOf(String deliveryId, String rider) {
+        Resp v = get(rider, "/api/rider/deliveries/" + deliveryId);
+        return new double[] {v.body().at("/destination/latitude").asDouble(), v.body().at("/destination/longitude").asDouble()};
+    }
+
+    /** 배송지 좌표에서 정북 방향으로 meters 떨어진 좌표 (Geo 와 같은 지구 반경 → 대권 거리 = meters). */
+    protected static double[] northOf(double lat, double lng, double meters) {
+        return new double[] {lat + Math.toDegrees(meters / 6_371_008.8), lng};
+    }
+
+    /** 배송지에 정확한 최신 위치를 둔 뒤 고객 도착. */
+    protected Resp arriveHere(String rider, String deliveryId) {
+        double[] dest = destinationOf(deliveryId, rider);
+        placeAt(deliveryId, rider, dest[0], dest[1], 5.0, clock.instant());
+        return post(rider, "/api/rider/deliveries/" + deliveryId + "/arrive-destination", null);
     }
 
     protected Map<String, Object> point(long seq, double lat, double lng, Instant measuredAt) {

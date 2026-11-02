@@ -46,6 +46,18 @@ public final class RoutePlayback {
         pending.add(0, new FaultSpec(type, Math.min(1.0, progressFraction()), durationTicks, durationSeconds));
     }
 
+    /**
+     * 경로 끝 도달 후 "배송지에 정차한 라이더" 위치. 실 GPS 가 정차 중에도 계속 보고되는 것과 같다.
+     * 고객 도착 판정의 위치 최신성(30초) 검증을 위해 SimulationService 가 FINISHED 이후 주기적으로 호출한다.
+     */
+    public Emission dwell(long virtualDeltaMs) {
+        if (!finished) throw new IllegalStateException("경로 끝 도달 전에는 정차 위치를 만들 수 없습니다");
+        if (virtualDeltaMs <= 0) throw new IllegalArgumentException("virtualDeltaMs > 0");
+        virtualMs += virtualDeltaMs;
+        SimRoute.Pt end = route.at(route.totalMeters());
+        return new Emission(++seq, end.lat(), end.lng(), 5.0, virtualMs, "DWELL");
+    }
+
     public TickOutput tick(long virtualDeltaMs) {
         if (virtualDeltaMs <= 0) throw new IllegalArgumentException("virtualDeltaMs > 0");
         List<String> events = new ArrayList<>();

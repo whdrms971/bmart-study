@@ -128,7 +128,8 @@ class LocationTrackingIT extends IntegrationTestBase {
         Instant t = clock.instant();
         send("R-TEST-02", n, List.of(point(1, 35.1800, 129.0760, t)));
         assertThat(get("C-TEST-02", "/api/customer/orders/" + orderOf(n) + "/tracking").at("/deliveries/0/rider/latitude").asDouble()).isEqualTo(35.18);
-        post("R-TEST-02", "/api/rider/deliveries/" + n + "/arrive-destination", null);
+        mclock().advance(java.time.Duration.ofMinutes(10)); // 직전 위치에서 배송지로 이동한 시간
+        assertThat(arriveHere("R-TEST-02", n).status()).isEqualTo(200);
         complete("R-TEST-02", n, "done-" + n, fakeJpeg());
         Resp after = send("R-TEST-02", n, List.of(point(2, 35.1801, 129.0761, t.plusSeconds(2))));
         assertThat(after.status()).isEqualTo(409);

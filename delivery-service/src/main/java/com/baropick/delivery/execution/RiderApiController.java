@@ -52,11 +52,13 @@ public class RiderApiController {
     private final HandoverService handover;
     private final LocationIngestService ingest;
     private final TrackingQueryService query;
+    private final ArrivalExceptionService arrivalExceptions;
     private final Clock clock;
 
     public RiderApiController(RiderRepository riders, DeliveryRepository deliveries, DispatchOfferRepository offers, DispatchService dispatch,
                               ExecutionService execution, HandoverService handover, LocationIngestService ingest, TrackingQueryService query,
-                              Clock clock) {
+                              ArrivalExceptionService arrivalExceptions, Clock clock) {
+        this.arrivalExceptions = arrivalExceptions;
         this.riders = riders;
         this.deliveries = deliveries;
         this.offers = offers;
@@ -167,6 +169,15 @@ public class RiderApiController {
     public TrackingViews.RiderDelivery arriveDestination(Authentication auth, @PathVariable String deliveryId) {
         execution.arriveAtDestination(deliveryId, Actor.from(auth).userId());
         return delivery(auth, deliveryId);
+    }
+
+    public record ArrivalExceptionRequest(com.baropick.delivery.domain.ArrivalException.Reason reasonCode, String note) {}
+
+    /** 고객 도착 예외 요청 (거리 초과·위치 불량 등으로 정상 판정 불가). 승인은 관리자만 가능. */
+    @PostMapping("/api/rider/deliveries/{deliveryId}/arrival-exceptions")
+    public ArrivalExceptionService.View requestArrivalException(Authentication auth, @PathVariable String deliveryId,
+                                                                @RequestBody(required = false) ArrivalExceptionRequest req) {
+        return arrivalExceptions.request(deliveryId, Actor.from(auth).userId(), req == null ? null : req.reasonCode(), req == null ? null : req.note());
     }
 
     @PostMapping("/api/rider/deliveries/{deliveryId}/release")

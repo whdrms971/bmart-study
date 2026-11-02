@@ -53,11 +53,14 @@ public class ExecutionService {
     private final IdempotencyService idempotency;
     private final ApplicationEventPublisher events;
     private final Policy policy;
+    private final ArrivalPolicy arrival;
     private final Clock clock;
 
     public ExecutionService(DeliveryRepository deliveries, DeliveryPackageRepository packages, DeliveryProofRepository proofs,
                             LatestLocationRepository latest, DispatchService dispatch, HistoryRecorder history, OutboxService outbox,
-                            IdempotencyService idempotency, ApplicationEventPublisher events, DeliveryProperties props, Clock clock) {
+                            IdempotencyService idempotency, ApplicationEventPublisher events, DeliveryProperties props,
+                            ArrivalPolicy arrival, Clock clock) {
+        this.arrival = arrival;
         this.deliveries = deliveries;
         this.packages = packages;
         this.proofs = proofs;
@@ -98,15 +101,22 @@ public class ExecutionService {
         return d;
     }
 
+    /**
+     * 고객 도착 (DECISIONS.md A-01~A-04). 순서: 담당 라이더 → 이미 도착이면 멱등 → 배송 중(IN_TRANSIT)만 허용 → 위치·거리 판정.
+     * 거리 초과·위치 불량은 거부되며, 라이더가 제한을 해제할 수 없다(예외는 관리자 승인 경로 ArrivalExceptionService).
+     */
     @Transactional
     public Delivery arriveAtDestination(String deliveryId, String riderId) {
         Delivery d = lockOwned(deliveryId, riderId);
         if (d.getStatus() == DeliveryStatus.ARRIVED_AT_DESTINATION) return d;
+        if (d.getStatus() != DeliveryStatus.IN_TRANSIT) {
+            throw ApiException.conflict("INVALID_DELIVERY_STATUS", "배송 중(IN_TRANSIT)인 배송만 고객 도착 처리할 수 있습니다 (현재 " + d.getStatus() + ")");
+        }
+        ArrivalPolicy.Check c = arrival.evaluate(d);
+        if (!c.allowed()) throw arrival.toException(c);
         DeliveryStatus from = d.transition(DeliveryStatus.ARRIVED_AT_DESTINATION, clock.instant(), DeliveryStatus.IN_TRANSIT);
-        String dist = latest.findById(deliveryId)
-                .map(l -> String.format("%.0fm", Geo.distanceMeters(l.getLat(), l.getLng(), d.getDestLat(), d.getDestLng())))
-                .orElse("위치 없음");
-        history.record(d, from, "RIDER:" + riderId, "고객 도착 (라이더 입력, 최신 위치-배송지 직선거리 " + dist + ")");
+        history.record(d, from, "RIDER:" + riderId, String.format("고객 도착 (라이더 입력, 거리 판정 통과 — %s, 허용 %.0fm)",
+                c.summary(), c.maxDistanceMeters()));
         return d;
     }
 

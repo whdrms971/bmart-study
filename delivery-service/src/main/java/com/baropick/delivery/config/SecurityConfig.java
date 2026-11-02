@@ -72,6 +72,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/test-login").permitAll()
                         .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/rider/**").hasRole("RIDER")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // 테스트 지원 API: 컨트롤러가 local-test 프로필에만 존재. 역할 세부 검사는 컨트롤러에서 수행
                         .requestMatchers("/test-api/**").hasAnyRole("ADMIN", "CUSTOMER", "RIDER")
                         .anyRequest().denyAll())

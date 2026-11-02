@@ -84,7 +84,7 @@ class SimulationIT extends IntegrationTestBase {
         assertThat(tracking.path("status").asString()).isEqualTo("IN_TRANSIT");
         assertThat(st.recentLog().stream().anyMatch(l -> l.detail().contains("배송 완료 아님"))).isTrue();
         // 라이더 앱 경로로만 완료
-        post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null);
+        assertThat(post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null).status()).as("경로 끝=배송지, 150m 판정 통과").isEqualTo(200);
         assertThat(complete("R-TEST-01", d, "sim-done", fakeJpeg()).text("/result")).isEqualTo("COMPLETED");
         // 저장된 위치는 SIMULATED_ROUTE + scenarioId 로 분리
         Integer sims = jdbc.queryForObject("select count(*) from rider_location where delivery_id=? and source='SIMULATED_ROUTE' and scenario_id=?",
@@ -177,7 +177,8 @@ class SimulationIT extends IntegrationTestBase {
         cmd(id, "prepare");
         cmd(id, "start");
         sim.tick(id);
-        post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null);
+        mclock().advance(java.time.Duration.ofMinutes(10)); // 라이더가 배송지까지 이동한 시간
+        assertThat(arriveHere("R-TEST-01", d).status()).isEqualTo(200);
         complete("R-TEST-01", d, "early-done", fakeJpeg());
         var st = sim.status(id);
         assertThat(st.state()).isIn(SimulationService.State.STOPPED, SimulationService.State.FAILED);
@@ -273,5 +274,42 @@ class SimulationIT extends IntegrationTestBase {
         Integer anomalies = jdbc.queryForObject("select count(*) from rider_location where scenario_id=? and verdict in ('REJECTED_INVALID','REJECTED_ANOMALY')",
                 Integer.class, id);
         assertThat(anomalies).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("A-05 시뮬레이션도 150m 판정: 경로 중간 거부 → 경로 끝 정차 위치로 30초 최신성 유지 → 허용 / 완료 후 정차 전송 중단")
+    void arrivalPolicyInSimulation() {
+        String d = pickedUpDelivery("C-TEST-01", "R-TEST-01");
+        String id = sid(create(d, "R-TEST-01", 10, List.of()));
+        cmd(id, "prepare");
+        cmd(id, "start");
+        sim.tick(id);
+        Resp mid = post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null);
+        assertThat(mid.status()).isEqualTo(409);
+        assertThat(mid.text("/code")).isEqualTo("ARRIVAL_TOO_FAR");
+
+        for (int i = 0; i < 500 && sim.status(id).state() == SimulationService.State.RUNNING; i++) sim.tick(id);
+        var fin = sim.status(id);
+        assertThat(fin.state()).isEqualTo(SimulationService.State.FINISHED);
+        assertThat(fin.dwelling()).isTrue();
+
+        // 경로 끝 도달 후 31초 동안 위치가 없으면(정차 전송 없음) 재측정 요청
+        mclock().advance(java.time.Duration.ofSeconds(31));
+        Resp stale = post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null);
+        assertThat(stale.status()).isEqualTo(422);
+        assertThat(stale.text("/details/reason")).isEqualTo("LOCATION_STALE");
+
+        // 정차 위치 1건(같은 수집·검증 경로) → 최신 위치 → 도착 허용
+        var dw = sim.dwellTick(id);
+        assertThat(dw.counters().dwellSent()).isEqualTo(1);
+        Resp ok = post("R-TEST-01", "/api/rider/deliveries/" + d + "/arrive-destination", null);
+        assertThat(ok.status()).as(ok.body().toString()).isEqualTo(200);
+
+        // 완료 후에는 위치 수신이 거부되어 정차 전송이 스스로 중단
+        assertThat(complete("R-TEST-01", d, "dwell-done", fakeJpeg()).text("/result")).isEqualTo("COMPLETED");
+        var after = sim.dwellTick(id);
+        assertThat(after.dwelling()).isFalse();
+        assertThat(after.counters().dwellSent()).isEqualTo(1);
+        assertThat(after.recentLog().stream().anyMatch(l -> l.type().equals("DWELL_END"))).isTrue();
     }
 }

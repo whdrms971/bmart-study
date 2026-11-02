@@ -79,7 +79,30 @@ class LocationReporter {
     return null;
   }
 
+  Position? _lastPosition;
+
+  /// 마지막으로 받은 단말 위치 (앱 도착 사전 판정용)
+  Position? get lastPosition => _lastPosition;
+
+  /// 즉시 재측정 후 서버로 전송. 정차 중에는 distanceFilter 때문에 새 위치가 오지 않아
+  /// 고객 도착 판정(측정 후 30초 이내)을 통과하지 못하므로, 도착 버튼·재측정 버튼에서 호출한다.
+  Future<String?> measureNow() async {
+    try {
+      final p = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.best))
+          .timeout(const Duration(seconds: 15));
+      _onFix(p);
+      for (var i = 0; i < 20 && _sending; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      await flush();
+      return _buffer.isEmpty ? null : '위치 전송 대기 중 (네트워크 확인)';
+    } catch (e) {
+      return '위치 재측정 실패: $e';
+    }
+  }
+
   void _onFix(Position p) {
+    _lastPosition = p;
     // seq: 측정시각(ms) 기반 단조 증가. 같은 시각 재수신은 서버가 DUPLICATE 로 처리
     var seq = p.timestamp.millisecondsSinceEpoch;
     if (seq <= _lastSeq) seq = _lastSeq + 1;

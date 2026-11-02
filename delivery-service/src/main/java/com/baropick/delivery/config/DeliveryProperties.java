@@ -19,9 +19,11 @@ public record DeliveryProperties(
         Policy policy,
         List<MfcSiteProps> mfcs,
         Simulation simulation,
-        TestAccounts testAccounts) {
+        TestAccounts testAccounts,
+        Arrival arrival) {
 
     public DeliveryProperties {
+        if (arrival == null) arrival = new Arrival(null, null, null);
         if (auth == null) auth = new Auth(null, 720, null);
         if (outbox == null) outbox = new Outbox(null, 2000L);
         if (mfcClient == null) mfcClient = new MfcClient(null);
@@ -64,6 +66,14 @@ public record DeliveryProperties(
     public enum RadiusPolicy { ENFORCE, TEST_BYPASS }
 
     public record Simulation(boolean enabled, Long tickRealMs) {}
+
+    /**
+     * 고객 도착 판정 정책 (2026-11-02 결정, DECISIONS.md A-01~A-03).
+     * maxDistanceMeters: 배송지 좌표와 라이더 최신 위치의 직선거리 상한(이하 허용)
+     * maxLocationAgeSeconds: 위치 측정 후 경과 상한 / maxAccuracyMeters: 위치 정확도 반경 상한(이하 허용)
+     * 미설정이면 도착 처리가 차단된다(POLICY_NOT_CONFIGURED).
+     */
+    public record Arrival(Double maxDistanceMeters, Integer maxLocationAgeSeconds, Double maxAccuracyMeters) {}
 
     public record TestAccounts(String passcode, List<String> customers, List<String> riders, List<String> admins) {
         public TestAccounts {

@@ -3,8 +3,9 @@ import { api, getToken, setToken } from './api';
 import { SimulatorPanel } from './SimulatorPanel';
 import { MockPanel } from './MockPanel';
 import { DeliveriesPanel } from './DeliveriesPanel';
+import { ArrivalExceptionsPanel } from './ArrivalExceptionsPanel';
 
-type Tab = 'sim' | 'mock' | 'deliveries';
+type Tab = 'sim' | 'mock' | 'deliveries' | 'arrival';
 
 export function App() {
   const [token, setTok] = useState<string | null>(getToken());
@@ -59,6 +60,7 @@ export function App() {
           <button className={tab === 'sim' ? 'on' : ''} onClick={() => setTab('sim')}>SIMULATED_ROUTE 제어</button>
           <button className={tab === 'mock' ? 'on' : ''} onClick={() => setTab('mock')}>Mock OMS/MFC</button>
           <button className={tab === 'deliveries' ? 'on' : ''} onClick={() => setTab('deliveries')}>배송 원장</button>
+          <button className={tab === 'arrival' ? 'on' : ''} onClick={() => setTab('arrival')}>도착 예외</button>
           <button onClick={() => { setToken(null); setTok(null); }}>로그아웃</button>
         </nav>
       </header>
@@ -66,6 +68,7 @@ export function App() {
       {serverOk && tab === 'sim' && <SimulatorPanel />}
       {serverOk && tab === 'mock' && <MockPanel />}
       {serverOk && tab === 'deliveries' && <DeliveriesPanel />}
+      {serverOk && tab === 'arrival' && <ArrivalExceptionsPanel />}
     </main>
   );
 }

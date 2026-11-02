@@ -103,10 +103,38 @@ export interface SimStatus {
     duplicate: number;
     rejected: number;
     stale: number;
+    /** 경로 끝 도달 후 배송지 정차 위치 전송 수 */
+    dwellSent: number;
   };
   plannedFaults: FaultSpec[];
   recentLog: LogEntry[];
   label: string;
+  /** 경로 끝(FINISHED) 이후 배송지 정차 위치를 보내는 중 (고객 도착 판정의 30초 최신성 유지) */
+  dwelling: boolean;
+}
+
+export type ArrivalExceptionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface ArrivalExceptionView {
+  exceptionId: string;
+  deliveryId: string;
+  orderId: string | null;
+  riderId: string;
+  assignmentVersion: number;
+  reasonCode: 'GPS_ERROR' | 'ADDRESS_COORDINATE_ERROR' | 'COMPLEX_ENTRY' | 'OTHER';
+  riderNote: string | null;
+  checkCode: string;
+  distanceMeters: number | null;
+  accuracyMeters: number | null;
+  locationAgeSeconds: number | null;
+  locationSource: string | null;
+  locationMeasuredAt: string | null;
+  status: ArrivalExceptionStatus;
+  requestedAt: string;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  result: string | null;
 }
 
 export interface RoutePreview {
