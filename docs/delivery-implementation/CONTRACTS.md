@@ -28,6 +28,8 @@
 | `scenarioId` | 시뮬레이터(테스트) | `SIM-…` | |
 | `eventId` | 발행 시스템 | `EVT-…` | |
 
+**ID 형식 (2026-11-02 확정, DECISIONS.md SEC-02):** OMS 가 보내는 `sourceSystem`·`orderId`·`deliveryId`·`customerId`·`mfcId` 는 **영문·숫자·`_`·`-` 1~40자** (`^[A-Za-z0-9_-]{1,40}$`). `packageId` 는 같은 문자 1~60자, `requestId`·`eventId` 는 100자 이하. 위반 시 `400`. 실제 OMS·MFC 연동 시에도 이 규칙을 따른다.
+
 ## 1. 상태
 
 **배송(Delivery 정본):** `REQUESTED → OFFERING → ASSIGNED → ARRIVED_AT_MFC → PICKED_UP → IN_TRANSIT → ARRIVED_AT_DESTINATION → DELIVERED`, 그리고 `CANCELLED`.
