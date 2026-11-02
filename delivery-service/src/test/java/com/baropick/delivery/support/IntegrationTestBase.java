@@ -50,6 +50,19 @@ import tools.jackson.databind.json.JsonMapper;
 @org.springframework.context.annotation.Import(IntegrationTestBase.ClockConfig.class)
 public abstract class IntegrationTestBase {
 
+    /**
+     * 테스트 DB 전환: Gradle `-PtestDbUrl=jdbc:postgresql://… -PtestDbUser=… -PtestDbPassword=…` 이면 H2 대신 그 DB 를 쓴다
+     * (scripts/test-postgres.ps1). 행 잠금·동시성 테스트(D-02, D-12 등)를 운영 DB 엔진에서 검증하기 위함.
+     */
+    @org.springframework.test.context.DynamicPropertySource
+    static void testDatabase(org.springframework.test.context.DynamicPropertyRegistry r) {
+        String url = System.getProperty("delivery.test.db.url", "");
+        if (url.isBlank()) return;
+        r.add("spring.datasource.url", () -> url);
+        r.add("spring.datasource.username", () -> System.getProperty("delivery.test.db.user", ""));
+        r.add("spring.datasource.password", () -> System.getProperty("delivery.test.db.password", ""));
+    }
+
     public static final String REMOTE_MFC = "MFC-TEST-REMOTE-01";
     public static final String NEAR_MFC = "MFC-TEST-01";
     public static final double T1_LAT = 35.162100, T1_LNG = 129.160200;

@@ -45,6 +45,13 @@ tasks.named('test') {
 	} else {
 		useJUnitPlatform { includeTags 'kakao-live' }
 	}
+	// 테스트 DB 전환 (scripts/test-postgres.ps1): -PtestDbUrl / -PtestDbUser / -PtestDbPassword
+	if (project.hasProperty('testDbUrl')) {
+		systemProperty 'delivery.test.db.url', project.property('testDbUrl')
+		systemProperty 'delivery.test.db.user', project.findProperty('testDbUser') ?: ''
+		systemProperty 'delivery.test.db.password', project.findProperty('testDbPassword') ?: ''
+		outputs.upToDateWhen { false }
+	}
 	testLogging {
 		events 'failed'
 		exceptionFormat 'full'
