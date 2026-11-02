@@ -81,7 +81,10 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final o = await api.get('/api/rider/offers') as List<dynamic>;
       if (mounted) setState(() => _offers = o);
-    } on ApiException catch (_) {/* 다음 폴링에서 재시도 */}
+    } on ApiException catch (e) {
+      // 토큰 만료·서명 키 변경: 3초 폴링에서 감지해 로그아웃 (그 외 오류는 다음 폴링에서 재시도)
+      if (e.isAuth && mounted) widget.onLogout();
+    }
   }
 
   /// 운행 중에는 30초마다 대기 위치를 보고(근거리 MFC 배차 반경 판정용)

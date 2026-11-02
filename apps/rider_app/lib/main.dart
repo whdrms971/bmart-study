@@ -23,6 +23,7 @@ class _RiderAppState extends State<RiderApp> {
   late final SessionStore _store = widget.store ?? SessionStore('RIDER');
   Session? _session;
   bool _restoring = true;
+  final _nav = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
@@ -43,13 +44,16 @@ class _RiderAppState extends State<RiderApp> {
   }
 
   Future<void> _logout() async {
+    if (_session == null) return; // 여러 화면에서 동시에 401 을 받아도 한 번만
     await _store.clear();
+    _nav.currentState?.popUntil((r) => r.isFirst); // 열린 상세 화면을 닫고 로그인 화면으로
     setState(() => _session = null);
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _nav,
       title: 'BARO-PICK 라이더 (TEST)',
       theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
       home: _restoring
