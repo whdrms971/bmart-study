@@ -79,3 +79,12 @@
 | L-02 | 저장소 읽기 제한 15초 | 첫 읽기(Keystore 복호화)가 에뮬레이터(ARM 변환)에서 약 3.7초 걸려 처음 둔 3초 제한은 복원을 실패시켰다. 응답이 아예 없으면 15초 후 로그인 화면 |
 
 토큰 만료는 서버 설정 `delivery.auth.token-ttl-minutes`(현재 720분)를 따른다. 갱신 토큰(refresh)은 없다 — 운영 IdP 연동 시 교체 대상(S-05).
+
+## 6. 보안 점검 결과 (2026-11-02, 저장소 전체)
+
+| ID | 항목 | 처리 |
+|---|---|---|
+| SEC-01 | OMS 가 보낸 `deliveryId` 를 형식 검사 없이 증빙 사진 저장 경로(`<proof-dir>/<deliveryId>/…`)에 사용 → `../` 포함 시 폴더 밖에 쓰기 가능(내부 토큰 호출자만 가능) | **수정** [설계 제안]: 배송 요청의 식별자(`sourceSystem`·`orderId`·`deliveryId`·`customerId`·`mfcId`)를 영문·숫자·`_`·`-` 1~40자로 제한(STOMP 토픽 규칙과 동일), 문자열 길이를 DB 컬럼 길이에 맞춰 검증(초과 시 500 대신 400). 저장 직전에도 경로가 증빙 폴더 안인지 확인. `DeliveryLifecycleIT.intakeRejectsUnsafeIds` |
+| SEC-02 | 실제 OMS 의 ID 형식이 위 규칙과 다를 수 있음 | [결정 필요] OMS 연동 시 계약(CONTRACTS.md)에서 ID 형식 확정. 다르면 `ID_PATTERN` 과 STOMP 토픽 패턴을 함께 조정 |
+| SEC-03 | `/api/customer/places`(카카오 Local 검색, 서버 키 사용)에 호출 빈도 제한 없음 → 로그인한 고객이 쿼터를 소진시킬 수 있음 | [결정 필요] 사용자별 제한값(예: 분당 N회)은 팀 결정. 운영에서는 주소 검색이 Commerce 소관이라 이 엔드포인트 자체를 쓰지 않을 수 있음. 관리 화면 `kakao-usage` 로 호출 수 관찰 가능 |
+| — | 확인 후 문제없음 | JWT 발급자·서명 검증, 내부 토큰 상수 시간 비교, STOMP CONNECT 인증·SUBSCRIBE 권한(고객=본인 주문, 라이더=본인), 클라이언트 SEND 차단, `/test-api/**`·Mock·로그인이 `local-test` 에만 존재하고 엔드포인트마다 역할 검사, 사진은 파일 시그니처로 형식 판정·크기 10MB 제한, actuator 는 health·info 만, 앱 HTTP 평문은 debug 빌드만, 관리 화면 토큰은 sessionStorage, 외부 HTTP 클라이언트 DEBUG 로깅 금지 |

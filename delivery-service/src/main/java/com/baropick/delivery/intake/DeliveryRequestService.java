@@ -26,6 +26,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -36,19 +38,26 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public class DeliveryRequestService {
 
-    public record Destination(@NotNull Double latitude, @NotNull Double longitude, @NotBlank String address, String addressDetail) {}
+    /**
+     * 식별자 형식: 영문·숫자·'_'·'-' 1~40자. deliveryId 는 증빙 사진 저장 경로에, orderId·riderId 는 STOMP 토픽에 쓰이므로
+     * 경로 구분자·'..' 등이 들어오지 못하게 입구에서 막는다(WebSocketConfig 토픽 패턴과 같은 규칙).
+     */
+    public static final String ID_PATTERN = "^[A-Za-z0-9_-]{1,40}$";
+
+    public record Destination(@NotNull Double latitude, @NotNull Double longitude, @NotBlank @Size(max = 300) String address,
+                              @Size(max = 200) String addressDetail) {}
 
     public record DeliveryRequest(
-            @NotBlank String sourceSystem,
-            @NotBlank String requestId,
-            @NotBlank String orderId,
-            @NotBlank String deliveryId,
-            @NotBlank String customerId,
-            @NotBlank String mfcId,
+            @NotBlank @Pattern(regexp = ID_PATTERN) String sourceSystem,
+            @NotBlank @Size(max = 100) String requestId,
+            @NotBlank @Pattern(regexp = ID_PATTERN) String orderId,
+            @NotBlank @Pattern(regexp = ID_PATTERN) String deliveryId,
+            @NotBlank @Pattern(regexp = ID_PATTERN) String customerId,
+            @NotBlank @Pattern(regexp = ID_PATTERN) String mfcId,
             @NotNull @Valid Destination destination,
             @NotNull @Min(1) @Max(20) Integer expectedPackageCount,
-            Integer totalWeightGrams,
-            String customerNote) {}
+            @Min(0) Integer totalWeightGrams,
+            @Size(max = 300) String customerNote) {}
 
     public record DeliveryRequestResult(String deliveryId, String orderId, boolean created, DeliveryStatus status, String locationMode) {}
 

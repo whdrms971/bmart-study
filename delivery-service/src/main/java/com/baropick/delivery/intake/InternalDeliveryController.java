@@ -12,6 +12,8 @@ import com.baropick.delivery.handover.HandoverService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -35,7 +37,8 @@ public class InternalDeliveryController {
         return ResponseEntity.status(r.created() ? 201 : 200).body(r);
     }
 
-    public record CancelRequest(@NotBlank String sourceSystem, @NotBlank String requestId, String reason) {}
+    public record CancelRequest(@NotBlank @Size(max = 40) String sourceSystem, @NotBlank @Size(max = 100) String requestId,
+                                @Size(max = 200) String reason) {}
 
     @PostMapping("/internal/deliveries/{deliveryId}/cancel")
     public ExecutionService.CancelResult cancel(@PathVariable String deliveryId, @Valid @RequestBody CancelRequest req) {
@@ -43,8 +46,9 @@ public class InternalDeliveryController {
     }
 
     /** MFC → Delivery: 해당 배송의 포장 전체가 준비(SEALED)되었음을 통지. (sourceSystem,eventId) 멱등. */
-    public record PackagesReadyEvent(@NotBlank String sourceSystem, @NotBlank String eventId, @NotBlank String deliveryId,
-                                     @NotEmpty List<@NotBlank String> packageIds) {}
+    public record PackagesReadyEvent(@NotBlank @Size(max = 40) String sourceSystem, @NotBlank @Size(max = 100) String eventId,
+                                     @NotBlank @Pattern(regexp = DeliveryRequestService.ID_PATTERN) String deliveryId,
+                                     @NotEmpty @Size(max = 20) List<@NotBlank @Pattern(regexp = "^[A-Za-z0-9_-]{1,60}$") String> packageIds) {}
 
     @PostMapping("/internal/mfc-events/packages-ready")
     public HandoverService.PackagesReadyResult packagesReady(@Valid @RequestBody PackagesReadyEvent ev) {

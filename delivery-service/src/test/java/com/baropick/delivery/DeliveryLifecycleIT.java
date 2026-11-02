@@ -67,6 +67,22 @@ class DeliveryLifecycleIT extends IntegrationTestBase {
     String internalToken() { return keys.internalToken(); }
 
     @Test
+    @DisplayName("배송 요청 식별자 형식 검증: 경로 문자·과도한 길이 → 400, 저장 안 됨")
+    void intakeRejectsUnsafeIds() {
+        for (var bad : List.of(Map.of("deliveryId", "../../evil"), Map.of("deliveryId", "DLV/1"), Map.of("orderId", "ORD 1"),
+                Map.of("deliveryId", "D".repeat(41)), Map.of("customerNote", "n".repeat(301)))) {
+            var body = new java.util.HashMap<String, Object>(Map.of("sourceSystem", MockOmsService.SOURCE, "requestId", "REQ-BAD-" + bad.hashCode(),
+                    "orderId", "ORD-BAD", "deliveryId", "DLV-BAD", "customerId", "C-TEST-01", "mfcId", REMOTE_MFC,
+                    "destination", Map.of("latitude", 35.1, "longitude", 129.1, "address", "주소"), "expectedPackageCount", 1));
+            body.putAll(bad);
+            Resp r = toResp(http.post().uri("/internal/delivery-requests").header("X-Internal-Token", internalToken())
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON).body(body).retrieve().toEntity(String.class));
+            assertThat(r.status()).as("%s", bad).isEqualTo(400);
+        }
+        assertThat(jdbc.queryForObject("select count(*) from delivery where order_id='ORD-BAD' or id like '%evil%'", Integer.class)).isZero();
+    }
+
+    @Test
     @DisplayName("내부 API 는 내부 토큰 없이 호출 불가")
     void internalRequiresToken() {
         Resp r = toResp(http.post().uri("/internal/delivery-requests").contentType(org.springframework.http.MediaType.APPLICATION_JSON)

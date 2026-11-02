@@ -128,6 +128,8 @@ public class ExecutionService {
                                    String contentType, String note) {
         if (requestId == null || requestId.isBlank()) throw ApiException.badRequest("REQUEST_ID_REQUIRED", "requestId 가 필요합니다");
         if (method == null) throw ApiException.badRequest("PROOF_METHOD_REQUIRED", "전달 방식(대면/비대면)이 필요합니다");
+        if (requestId.length() > 100) throw ApiException.badRequest("REQUEST_ID_TOO_LONG", "requestId 는 100자 이하");
+        if (note != null && note.length() > 300) throw ApiException.badRequest("NOTE_TOO_LONG", "메모는 300자 이하");
         Delivery d = lockOwnedOrPrevious(deliveryId, riderId);
         var prior = proofs.findByDeliveryId(deliveryId);
         if (prior.isPresent()) {
@@ -150,7 +152,12 @@ public class ExecutionService {
         Instant now = clock.instant();
         String proofId = Ids.next("PRF");
         String dir = Policy.require(policy.proofStorageDir(), "proof-storage-dir");
-        Path path = Path.of(dir, deliveryId, proofId + ext(contentType));
+        Path base = Path.of(dir).toAbsolutePath().normalize();
+        Path path = base.resolve(deliveryId).resolve(proofId + ext(contentType)).normalize();
+        // deliveryId 는 입구(ID_PATTERN)에서 검증되지만, 저장 경로가 증빙 폴더를 벗어나지 않음을 한 번 더 확인한다
+        if (!path.startsWith(base) || !path.getParent().getParent().equals(base)) {
+            throw ApiException.badRequest("INVALID_DELIVERY_ID", "배송 ID 형식 오류");
+        }
         try {
             Files.createDirectories(path.getParent());
             Files.write(path, photo);
