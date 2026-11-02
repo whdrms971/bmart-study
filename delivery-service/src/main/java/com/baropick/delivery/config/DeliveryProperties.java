@@ -20,14 +20,16 @@ public record DeliveryProperties(
         List<MfcSiteProps> mfcs,
         Simulation simulation,
         TestAccounts testAccounts,
-        Arrival arrival) {
+        Arrival arrival,
+        Retention retention) {
 
     public DeliveryProperties {
         if (arrival == null) arrival = new Arrival(null, null, null);
         if (auth == null) auth = new Auth(null, 720, null);
         if (outbox == null) outbox = new Outbox(null, 2000L);
         if (mfcClient == null) mfcClient = new MfcClient(null);
-        if (policy == null) policy = new Policy(null, null, null, null, null, null, null, null, null, null, null);
+        if (policy == null) policy = new Policy(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        if (retention == null) retention = new Retention(null, null, false, null);
         if (mfcs == null) mfcs = List.of();
         if (simulation == null) simulation = new Simulation(false, 1000L);
         if (testAccounts == null) testAccounts = new TestAccounts(null, List.of(), List.of(), List.of());
@@ -51,7 +53,13 @@ public record DeliveryProperties(
             Integer etaMinIntervalSeconds,
             String proofStorageDir,
             /** P-02 근거리 배차 반경 기본값(m). radius-policy=ENFORCE 인 MFC 에 radius-meters 가 없을 때 사용 (2026-11-02 결정 3000) */
-            Integer dispatchRadiusMeters) {
+            Integer dispatchRadiusMeters,
+            /** P-03 제안 전원 거절·만료로 시도가 끝난 뒤 다음 시도까지 대기(초) (2026-11-02 결정 30) */
+            Integer dispatchRetryIntervalSeconds,
+            /** P-04 배차 가능 시간 "HH:mm-HH:mm" (종료 24:00 허용) (2026-11-02 결정 09:00-24:00) */
+            String dispatchHours,
+            /** P-04 배차 가능 시간 판단 시간대 (예: Asia/Seoul) */
+            String dispatchTimeZone) {
 
         public static <T> T require(T v, String name) {
             if (v == null) {
@@ -76,6 +84,12 @@ public record DeliveryProperties(
      * 미설정이면 도착 처리가 차단된다(POLICY_NOT_CONFIGURED).
      */
     public record Arrival(Double maxDistanceMeters, Integer maxLocationAgeSeconds, Double maxAccuracyMeters) {}
+
+    /**
+     * P-09 보관 기간 (2026-11-02 결정: 위치 이력 30일, 증빙 사진 90일). 지난 데이터는 매일 자동 삭제.
+     * 상태 이력·최신 위치·증빙 기록(해시·시각)은 삭제하지 않는다. 기간 미설정이면 해당 항목은 삭제하지 않는다(무기한).
+     */
+    public record Retention(Integer locationHistoryDays, Integer proofPhotoDays, boolean purgeEnabled, String purgeCron) {}
 
     public record TestAccounts(String passcode, List<String> customers, List<String> riders, List<String> admins) {
         public TestAccounts {

@@ -74,14 +74,32 @@ public class DispatchService {
         if (d.getStatus() != DeliveryStatus.REQUESTED || d.isDispatchStalled()) {
             return new DispatchOutcome(deliveryId, "SKIPPED", 0, "status=" + d.getStatus() + ", stalled=" + d.isDispatchStalled());
         }
+        // P-04 배차 가능 시간: 밖이면 시도를 만들지 않고 대기(시도 횟수에 포함하지 않음). 스케줄러가 운영 시작 후 다시 시도한다
+        DispatchHours hours = DispatchHours.parse(Policy.require(policy.dispatchHours(), "dispatch-hours"),
+                Policy.require(policy.dispatchTimeZone(), "dispatch-time-zone"));
+        Instant checkAt = clock.instant();
+        if (!hours.isOpen(checkAt)) {
+            d.setDispatchNote("OUTSIDE_DISPATCH_HOURS: 배차 가능 시간 " + hours.label() + " 외 — " + hours.nextOpen(checkAt) + " 이후 배차");
+            return new DispatchOutcome(deliveryId, "OUTSIDE_DISPATCH_HOURS", 0, d.getDispatchNote());
+        }
         int maxAttempts = Policy.require(policy.maxDispatchAttempts(), "max-dispatch-attempts");
         int ttl = Policy.require(policy.offerTtlSeconds(), "offer-ttl-seconds");
-        int lastNo = attempts.findFirstByDeliveryIdOrderByAttemptNoDesc(deliveryId).map(DispatchAttempt::getAttemptNo).orElse(0);
+        var last = attempts.findFirstByDeliveryIdOrderByAttemptNoDesc(deliveryId);
+        int lastNo = last.map(DispatchAttempt::getAttemptNo).orElse(0);
         if (lastNo >= maxAttempts) {
             Instant now = clock.instant();
             d.stall("DISPATCH_ATTEMPTS_EXHAUSTED: 최대 " + maxAttempts + "회 시도 후 미배정 — 관리자 확인 필요", now);
             history.note(d, "SYSTEM", "배차 시도 소진, 관리자 재배차 필요");
             return new DispatchOutcome(deliveryId, "STALLED", 0, d.getDispatchNote());
+        }
+        // P-03 재시도 간격: 직전 시도가 전원 거절·만료로 끝났으면 간격이 지날 때까지 대기 (재배정 해제 후 재배차는 즉시)
+        if (last.isPresent() && last.get().getStatus() == AttemptStatus.EXHAUSTED && last.get().getClosedAt() != null) {
+            int interval = Policy.require(policy.dispatchRetryIntervalSeconds(), "dispatch-retry-interval-seconds");
+            Instant readyAt = last.get().getClosedAt().plusSeconds(interval);
+            if (checkAt.isBefore(readyAt)) {
+                d.setDispatchNote("RETRY_WAIT: 직전 시도 미배정 — " + interval + "초 간격 후 재배차 (" + readyAt + ")");
+                return new DispatchOutcome(deliveryId, "RETRY_WAIT", 0, d.getDispatchNote());
+            }
         }
         List<Rider> eligible = eligibleRiders(d);
         if (eligible.isEmpty()) {

@@ -51,18 +51,29 @@ class ProdProfileIT {
     }
 
     @Test
-    @DisplayName("prod: 확정 정책값 적용 — P-01 60초, P-02 3000m, P-10 3건, 고객 도착 150m/30초/50m. 미확정 값은 미설정(기능 차단)")
+    @DisplayName("prod: 확정 정책값 P-01~P-10 · 고객 도착 · 보관 기간 적용 (2026-11-02 결정)")
     void prodDecidedPolicies() {
         var props = ctx.getBean(com.baropick.delivery.config.DeliveryProperties.class);
-        assertThat(props.policy().offerTtlSeconds()).isEqualTo(60);
-        assertThat(props.policy().dispatchRadiusMeters()).isEqualTo(3000);
-        assertThat(props.policy().maxConcurrentDeliveries()).isEqualTo(3);
+        var p = props.policy();
+        assertThat(p.offerTtlSeconds()).isEqualTo(60);                       // P-01
+        assertThat(p.dispatchRadiusMeters()).isEqualTo(3000);                // P-02
+        assertThat(p.riderLocationFreshnessSeconds()).isEqualTo(300);        // P-02
+        assertThat(p.maxDispatchAttempts()).isEqualTo(3);                    // P-03
+        assertThat(p.dispatchRetryIntervalSeconds()).isEqualTo(30);          // P-03
+        assertThat(p.dispatchHours()).isEqualTo("09:00-24:00");              // P-04 (local-test 의 24시간 값이 섞이지 않음)
+        assertThat(p.dispatchTimeZone()).isEqualTo("Asia/Seoul");
+        assertThat(p.exposeRiderLocationFrom()).isEqualTo(com.baropick.delivery.domain.DeliveryStatus.PICKED_UP); // P-05
+        assertThat(p.locationFutureSkewSeconds()).isEqualTo(30);             // P-06
+        assertThat(p.locationMaxDelaySeconds()).isEqualTo(120);              // P-06
+        assertThat(p.locationMaxSpeedMps()).isEqualTo(50.0);                 // P-07
+        assertThat(p.etaMinIntervalSeconds()).isEqualTo(60);                 // P-08
+        assertThat(p.maxConcurrentDeliveries()).isEqualTo(3);                // P-10
+        assertThat(props.retention().locationHistoryDays()).isEqualTo(30);   // P-09
+        assertThat(props.retention().proofPhotoDays()).isEqualTo(90);        // P-09
+        assertThat(props.retention().purgeEnabled()).isTrue();
         assertThat(props.arrival().maxDistanceMeters()).isEqualTo(150.0);
         assertThat(props.arrival().maxLocationAgeSeconds()).isEqualTo(30);
         assertThat(props.arrival().maxAccuracyMeters()).isEqualTo(50.0);
-        // 미확정(P-03 재시도 횟수, P-05 위치 공개 시점 등)은 운영에서 기본값이 없어야 한다
-        assertThat(props.policy().maxDispatchAttempts()).isNull();
-        assertThat(props.policy().exposeRiderLocationFrom()).isNull();
     }
 
     @Test

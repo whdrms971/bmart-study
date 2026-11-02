@@ -21,14 +21,8 @@ delivery:
     # 비어 있으면 같은 서버의 Mock MFC를 사용
     base-url: ${DELIVERY_MFC_BASE_URL:}
   policy:
-    # P-01 offer-ttl-seconds, P-10 max-concurrent-deliveries, P-02 dispatch-radius-meters 는 확정되어 application.yml 로 이동
-    max-dispatch-attempts: 3         # P-03 TEST-ONLY
-    rider-location-freshness-seconds: 300
-    expose-rider-location-from: PICKED_UP   # P-05 TEST-ONLY
-    location-future-skew-seconds: 30        # P-06 TEST-ONLY
-    location-max-delay-seconds: 120         # P-06 TEST-ONLY
-    location-max-speed-mps: 50              # P-07 TEST-ONLY
-    eta-min-interval-seconds: 60            # P-08 TEST-ONLY
+    # 정책값은 모두 확정되어 application.yml 에 있다(2026-11-02). 여기에는 테스트 환경 전용 값만 둔다.
+    dispatch-hours: "00:00-24:00"   # TEST-ONLY: 밤에도 테스트할 수 있게 24시간 (운영 P-04 는 09:00-24:00)
     proof-storage-dir: ./data/proofs
   mfcs:
     - id: MFC-TEST-REMOTE-01

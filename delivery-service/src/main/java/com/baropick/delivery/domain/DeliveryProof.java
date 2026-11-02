@@ -22,8 +22,13 @@ public class DeliveryProof {
     private String note;
     @jakarta.persistence.Column(name = "distance_to_destination_m") private Double distanceToDestinationM;
     private Instant createdAt;
+    /** P-09: 보관 기간이 지나 사진 파일을 삭제한 시각 (기록은 유지) */
+    private Instant photoPurgedAt;
 
     protected DeliveryProof() {}
+
+    public void markPhotoPurged(Instant at) { this.photoPurgedAt = at; }
+    public Instant getPhotoPurgedAt() { return photoPurgedAt; }
 
     public DeliveryProof(String id, String deliveryId, String riderId, String requestId, ProofMethod method, String photoPath,
                          String photoSha256, long photoBytes, String note, Double distanceToDestinationM, Instant createdAt) {

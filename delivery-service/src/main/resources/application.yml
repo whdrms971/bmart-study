@@ -45,11 +45,28 @@ delivery:
   outbox:
     oms-endpoint: ${DELIVERY_OMS_EVENT_ENDPOINT:}
     relay-interval-ms: 2000
-  # 운영 정책값 (DECISIONS.md P-01~P-14). 아래는 2026-11-02 확정된 값만 둔다. 나머지 미확정 값은 기본값 없음 → 미설정 시 해당 기능 차단.
+  # 운영 정책값 (DECISIONS.md P-01~P-14, 2026-11-02 전부 확정). 환경변수로 환경별 조정. 값을 지우면 해당 기능은 차단된다.
+  # (proof-storage-dir 는 정책이 아니라 인프라 설정 — 운영 저장소는 배포 환경에서 지정)
   policy:
-    offer-ttl-seconds: ${DELIVERY_OFFER_TTL_SECONDS:60}               # P-01 확정: 배차 제안 응답 제한시간
-    max-concurrent-deliveries: ${DELIVERY_MAX_CONCURRENT_DELIVERIES:3} # P-10 확정: 라이더 동시 수행 최대 건수
-    dispatch-radius-meters: ${DELIVERY_DISPATCH_RADIUS_M:3000}         # P-02 확정: 근거리 배차 반경 기본값(MFC 별 radius-meters 가 우선)
+    offer-ttl-seconds: ${DELIVERY_OFFER_TTL_SECONDS:60}                       # P-01 배차 제안 응답 제한시간
+    dispatch-radius-meters: ${DELIVERY_DISPATCH_RADIUS_M:3000}                 # P-02 근거리 배차 반경 기본값(MFC 별 radius-meters 우선)
+    rider-location-freshness-seconds: ${DELIVERY_RIDER_LOCATION_FRESH_S:300}   # P-02 반경 판정에 쓰는 대기 위치 최대 경과
+    max-dispatch-attempts: ${DELIVERY_MAX_DISPATCH_ATTEMPTS:3}                 # P-03 배차 시도 횟수(소진 시 관리자 확인)
+    dispatch-retry-interval-seconds: ${DELIVERY_DISPATCH_RETRY_INTERVAL_S:30}  # P-03 전원 거절·만료 후 재시도 간격
+    dispatch-hours: ${DELIVERY_DISPATCH_HOURS:09:00-24:00}                     # P-04 배차 가능 시간
+    dispatch-time-zone: ${DELIVERY_DISPATCH_TIME_ZONE:Asia/Seoul}              # P-04 시간대
+    expose-rider-location-from: ${DELIVERY_EXPOSE_RIDER_LOCATION_FROM:PICKED_UP} # P-05 고객에게 라이더 위치 공개 시작
+    location-future-skew-seconds: ${DELIVERY_LOCATION_FUTURE_SKEW_S:30}        # P-06 측정 시각 허용 미래 오차
+    location-max-delay-seconds: ${DELIVERY_LOCATION_MAX_DELAY_S:120}           # P-06 이보다 늦게 도착한 위치는 최신으로 쓰지 않음
+    location-max-speed-mps: ${DELIVERY_LOCATION_MAX_SPEED_MPS:50}              # P-07 비정상 이동 속도(m/s)
+    eta-min-interval-seconds: ${DELIVERY_ETA_MIN_INTERVAL_S:60}                # P-08 ETA 재계산 최소 간격
+    max-concurrent-deliveries: ${DELIVERY_MAX_CONCURRENT_DELIVERIES:3}         # P-10 라이더 동시 수행 최대 건수
+  # P-09 보관 기간 — 지난 위치 이력·증빙 사진 파일을 매일 자동 삭제 (법정 의무는 법무 확인 대상)
+  retention:
+    location-history-days: ${DELIVERY_RETENTION_LOCATION_DAYS:30}
+    proof-photo-days: ${DELIVERY_RETENTION_PROOF_PHOTO_DAYS:90}
+    purge-enabled: ${DELIVERY_RETENTION_PURGE_ENABLED:true}
+    purge-cron: "${DELIVERY_RETENTION_PURGE_CRON:0 30 3 * * *}"
   # 고객 도착 판정 (2026-11-02 결정 정책, DECISIONS.md A-01~A-03). 모든 프로필 공통. 환경별 조정은 외부 설정으로 덮어쓴다.
   arrival:
     max-distance-meters: ${DELIVERY_ARRIVAL_MAX_DISTANCE_M:150}

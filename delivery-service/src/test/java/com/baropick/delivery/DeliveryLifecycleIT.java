@@ -132,6 +132,11 @@ class DeliveryLifecycleIT extends IntegrationTestBase {
         dispatch.tryDispatch(d);
         assertThat(post("R-TEST-01", "/api/rider/offers/" + offerFor("R-TEST-01", d) + "/reject", Map.of("reason", "거리")).status()).isEqualTo(200);
         assertThat(status(d)).isEqualTo("REQUESTED");
+        // P-03: 전원 거절로 시도가 끝나면 30초 간격 후 재시도
+        assertThat(dispatch.tryDispatch(d).result()).isEqualTo("RETRY_WAIT");
+        mclock().advance(Duration.ofSeconds(29));
+        assertThat(dispatch.tryDispatch(d).result()).isEqualTo("RETRY_WAIT");
+        mclock().advance(Duration.ofSeconds(1));
         assertThat(dispatch.tryDispatch(d).result()).isEqualTo("NO_ELIGIBLE_RIDER");
         onDuty("R-TEST-02");
         assertThat(dispatch.tryDispatch(d).result()).isEqualTo("OFFERED");
