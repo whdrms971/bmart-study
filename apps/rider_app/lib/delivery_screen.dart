@@ -4,10 +4,12 @@ import 'dart:typed_data';
 
 import 'package:delivery_common/delivery_common.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'location_reporter.dart';
+import 'navigation_links.dart';
 import 'scan_screen.dart';
 
 /// 배송 수행: MFC 도착 → 포장 QR 인계(전량) → 배송 출발 → 고객 도착 → 사진 증빙 전달 완료.
@@ -160,12 +162,31 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Future<void> _navigate(double lat, double lng, String name) async {
-    final app = Uri.parse('kakaomap://route?ep=$lat,$lng&by=CAR');
+    final app = kakaoMapAppRoute(lat, lng);
     if (await canLaunchUrl(app)) {
       await launchUrl(app);
-    } else {
-      await launchUrl(Uri.parse('https://map.kakao.com/link/to/${Uri.encodeComponent(name)},$lat,$lng'), mode: LaunchMode.externalApplication);
+      return;
     }
+    final start = await _knownPosition();
+    await launchUrl(kakaoMapWebRoute(destName: name, lat: lat, lng: lng, startLat: start?.lat, startLng: start?.lng),
+        mode: LaunchMode.externalApplication);
+  }
+
+  /// 웹 길찾기 출발지. 실 GPS 배송은 기기의 마지막 위치, SIMULATED 배송(또는 기기 위치 없음)은 서버의 최신 위치.
+  Future<({double lat, double lng})?> _knownPosition() async {
+    final d = _d;
+    if (d == null) return null;
+    if (d['simulated'] != true) {
+      try {
+        final p = await Geolocator.getLastKnownPosition();
+        if (p != null) return (lat: p.latitude, lng: p.longitude);
+      } catch (_) {
+        // 권한 없음 등 — 서버 위치로 대체
+      }
+    }
+    final pos = d['lastLocation'] as Map<String, dynamic>?;
+    if (pos == null) return null;
+    return (lat: (pos['latitude'] as num).toDouble(), lng: (pos['longitude'] as num).toDouble());
   }
 
   @override
