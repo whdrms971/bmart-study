@@ -122,7 +122,10 @@ public class TrackingQueryService {
     }
 
     private Eta eta(Delivery d) {
-        if (d.getStatus().isTerminal() || !d.getStatus().atOrAfter(DeliveryStatus.IN_TRANSIT)) {
+        if (d.getStatus().isTerminal()) {
+            return new Eta(EtaStatus.NOT_APPLICABLE.name(), null, null, null, null, null, "배송이 종료되었습니다");
+        }
+        if (!d.getStatus().atOrAfter(DeliveryStatus.IN_TRANSIT)) {
             return new Eta(EtaStatus.NOT_APPLICABLE.name(), null, null, null, null, null, "배송 출발 후 표시됩니다");
         }
         if (policy.etaMinIntervalSeconds() == null) {
