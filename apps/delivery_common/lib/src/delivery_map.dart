@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
@@ -7,6 +9,17 @@ class GeoPoint {
   const GeoPoint(this.lat, this.lng);
   final double lat;
   final double lng;
+}
+
+/// 지도 초기 맞춤에서 "가까운 두 점"으로 볼 거리. 이보다 가까우면 줌 16 고정(과확대 방지).
+const double nearFitMeters = 300;
+
+/// 두 좌표의 대권 거리가 [meters] 미만인지 (Haversine).
+bool closeEnough(GeoPoint a, GeoPoint b, {double meters = nearFitMeters}) {
+  double rad(double d) => d * math.pi / 180;
+  final dp = rad(b.lat - a.lat), dl = rad(b.lng - a.lng);
+  final h = math.sin(dp / 2) * math.sin(dp / 2) + math.cos(rad(a.lat)) * math.cos(rad(b.lat)) * math.sin(dl / 2) * math.sin(dl / 2);
+  return 2 * 6371008.8 * math.atan2(math.sqrt(h), math.sqrt(1 - h)) < meters;
 }
 
 /// 배송 지도 (카카오 지도 Android SDK v2, 서드파티 Flutter 브릿지 kakao_map_sdk).
@@ -83,8 +96,13 @@ class _DeliveryMapState extends State<DeliveryMap> {
   Future<void> _initialFit() async {
     if (_c == null || _initialFitDone) return;
     final pts = [_ll(widget.destination), if (widget.rider != null) _ll(widget.rider!)];
+    final r = widget.rider;
     if (pts.length == 1) {
       await _c!.moveCamera(CameraUpdate.newCenterPosition(pts.first, zoomLevel: 16));
+    } else if (r != null && closeEnough(r, widget.destination)) {
+      // 두 점이 가까우면 fitMapPoints 가 최대 줌까지 확대해 주변을 알아볼 수 없다 → 중간 지점·줌 16 고정
+      final mid = LatLng((r.lat + widget.destination.lat) / 2, (r.lng + widget.destination.lng) / 2);
+      await _c!.moveCamera(CameraUpdate.newCenterPosition(mid, zoomLevel: 16));
     } else {
       await _c!.moveCamera(CameraUpdate.fitMapPoints(pts, padding: 80));
     }
