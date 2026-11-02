@@ -17,7 +17,7 @@
 
 | ID | 실행 | 결과 |
 |---|---|---|
-| E1 | `delivery-service\gradlew.bat test` (8개 클래스) | **66건** 통과, 실패 0 (이전 44건 + `ArrivalPolicyIT` 16 + `SimulationIT` 1 + `KakaoFailureIT` 5) |
+| E1 | `delivery-service\gradlew.bat test` (11개 클래스) | **72건** 통과, 실패 0 (이전 44건 + `ArrivalPolicyIT` 16 + `SimulationIT` 1 + `KakaoFailureIT` 5 + `ProdProfileIT` 1 + `DispatchHoursTest` 3 + `DispatchHoursIT` 1 + `RetentionIT` 1) |
 | E2 | `flutter analyze` / `flutter test` (delivery_common, customer_app, rider_app) | 이슈 0, 테스트 16건 통과 (delivery_common 6: 오류 문구 3 포함 / customer_app 1 / rider_app 9: 도착 판정 5·길안내 링크 3·위젯 1) |
 | E3 | `simulator-admin` `npm run typecheck` / `npm run build` | 통과 |
 | E4 | `scripts\e2e-mode-a.ps1 -Rate 10` (FIXTURE) | 통과 — `reports/runs/mode-a-fixture-20261102-092955.md` |
@@ -137,3 +137,15 @@
 | 근거리 지도 초기 맞춤 과확대 | ✅ 자동 / ✅ 에뮬 | E2 `closeEnough`(300m) 단위 테스트. E7: 배송지 0m 에서 라이더 화면 → 줌 16 으로 주변 도로·건물 표시(이전에는 최대 확대로 빈 화면에 가까웠음) |
 
 발견·수정: 저장소 읽기에 처음 둔 3초 제한 때문에 에뮬레이터에서 복원이 항상 실패(첫 읽기 약 3.7초) → 15초로 조정(DECISIONS.md L-02). 콜드 스타트 중 Android 가 이전 화면 스냅샷을 보여줘 "복원 성공 후 로그아웃"처럼 보였으나, 로그로 확인한 실제 원인은 시간 초과였다.
+
+## C. 나머지 정책 확정·구현 (2026-11-02)
+
+| 항목 | 판정 | 근거 |
+|---|---|---|
+| 운영 프로필에 P-01~P-10 확정값 적용 | ✅ 자동 | E1 `ProdProfileIT`: 제안 60초, 반경 3,000m·대기 위치 5분, 시도 3회·간격 30초, 배차 시간 09:00-24:00 Asia/Seoul(local-test 24시간 값이 섞이지 않음), 위치 공개 PICKED_UP, +30초/120초, 50m/s, ETA 60초, 동시 3건, 보관 30일/90일, 도착 150m/30초/50m |
+| P-03 재시도 30초 간격 | ✅ 자동 | E1 `DeliveryLifecycleIT` 거절 직후 `RETRY_WAIT`, 29초 `RETRY_WAIT`, 30초에 재시도. 재배정 해제 후 재배차는 즉시(기존 D-17 통과) |
+| P-04 배차 가능 시간 | ✅ 자동 | E1 `DispatchHoursTest` 3건(08:59 닫힘·09:00 열림·23:59 열림·00:00 닫힘, UTC 시계에서도 KST 기준, 24시간·자정 넘는 구간·형식 오류). `DispatchHoursIT`: 03:30 KST 요청 → `OUTSIDE_DISPATCH_HOURS`, 반복해도 시도 0건(소진 안 됨) → 09:00 KST 배차 제안 |
+| P-09 보관 기간 자동 삭제 | ✅ 자동 | E1 `RetentionIT`: 29일 삭제 없음 → 31일 위치 이력 삭제(최신 위치·사진 유지) → 91일 사진 파일 삭제, 증빙 기록(해시·크기)·`photo_purged_at`·상태 이력 유지, 재실행 시 중복 처리 없음. E10 PostgreSQL 에서도 통과(V3 마이그레이션 포함) |
+| P-05~P-08, P-11, P-13 | ✅ 자동 | 기존 동작을 확정값으로 전환. 기존 테스트(D-09·D-16·D-17·D-04·D-05·D-12 등) 통과 |
+| P-12 분할 규칙 / P-14 알림 방식 | — | OMS 결정 사항 / 현행 유지(FCM 은 Firebase 준비 후). 코드 변경 없음 |
+| 실제 보관 기간의 법적 적합성 | ⬜ 확인 필요 | 위치정보법·개인정보보호법상 보관·파기 의무는 법무 확인 대상. 값은 환경변수로 조정 가능 |
