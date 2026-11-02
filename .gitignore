@@ -34,3 +34,6 @@ apps/*/.flutter-plugins-dependencies
 apps/dist/
 *.apk
 
+
+# TypeScript 증분 빌드 캐시 (빌드마다 바뀜)
+*.tsbuildinfo
