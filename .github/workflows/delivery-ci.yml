@@ -19,7 +19,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: delivery-ci-${{ github.ref }}
+  # push 와 PR 이 같은 브랜치에서 중복 실행되지 않도록 브랜치 이름으로 묶는다
+  group: delivery-ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -27,9 +28,13 @@ permissions:
 
 jobs:
   backend:
-    name: backend (H2 + PostgreSQL)
+    name: backend (${{ matrix.db }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [h2, postgres]
     services:
       postgres:
         image: postgres:17-alpine
@@ -52,8 +57,10 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
       - name: test (H2, PostgreSQL 모드)
+        if: matrix.db == 'h2'
         run: ./gradlew test --console=plain
       - name: test (PostgreSQL 17)
+        if: matrix.db == 'postgres'
         run: >-
           ./gradlew test --console=plain
           -PtestDbUrl=jdbc:postgresql://127.0.0.1:5432/delivery_test
@@ -62,7 +69,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-test-reports
+          name: backend-test-reports-${{ matrix.db }}
           path: delivery-service/build/reports/tests/
 
   flutter:
@@ -87,7 +94,7 @@ jobs:
         run: flutter pub get && flutter analyze && flutter test
 
   admin:
-    name: simulator-admin (typecheck + build)
+    name: simulator-admin (build = tsc -b + vite)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -101,5 +108,4 @@ jobs:
           cache: npm
           cache-dependency-path: simulator-admin/package-lock.json
       - run: npm ci --no-audit --no-fund
-      - run: npm run typecheck
       - run: npm run build
