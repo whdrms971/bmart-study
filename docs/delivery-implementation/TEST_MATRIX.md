@@ -2,7 +2,7 @@
 
 > 기준일: **2026-11-02**, 데스크톱(Windows 11, JDK 21.0.12, Flutter 3.47.8, Node 26.13) 에서 실행한 결과만 기록한다.
 > 노트북(2026-10-31) 결과는 참고로만 적고, 판정은 이 PC 재실행 기준이다.
-> 대상 커밋: `e3bc902` (feature/delivery-lab)
+> 대상 커밋: `e3bc902` (feature/delivery-lab) — §A 고객 도착 정책은 이후 커밋 기준
 
 ## 판정 기호
 
@@ -17,8 +17,8 @@
 
 | ID | 실행 | 결과 |
 |---|---|---|
-| E1 | `delivery-service\gradlew.bat test` (6개 클래스) | 44건 통과, 실패 0 |
-| E2 | `flutter analyze` / `flutter test` (delivery_common, customer_app, rider_app) | 이슈 0, 테스트 5건 통과 |
+| E1 | `delivery-service\gradlew.bat test` (7개 클래스) | **61건** 통과, 실패 0 (고객 도착 정책 추가 후. 이전 44건 + `ArrivalPolicyIT` 16 + `SimulationIT` 1) |
+| E2 | `flutter analyze` / `flutter test` (delivery_common, customer_app, rider_app) | 이슈 0, 테스트 13건 통과 (rider_app 9: 도착 판정 5·길안내 링크 3·위젯 1) |
 | E3 | `simulator-admin` `npm run typecheck` / `npm run build` | 통과 |
 | E4 | `scripts\e2e-mode-a.ps1 -Rate 10` (FIXTURE) | 통과 — `reports/runs/mode-a-fixture-20261102-092955.md` |
 | E5 | `scripts\e2e-mode-a.ps1 -RouteSource KAKAO_DIRECTIONS -Rate 10` | 통과, 카카오 실경로 101점 3,574m, ETA OK — `reports/runs/mode-a-kakao_directions-20261102-105259.md` |
@@ -75,6 +75,24 @@
 | D-34 | 기기 없이 자동 모드 A | ✅ 자동 | E4, E5 |
 | D-35 | Android 모의 GPS (선택) | ⬜ 미검증 | |
 
+## A. 고객 도착 판정 정책 (2026-11-02 결정, DECISIONS.md A-01~A-05)
+
+| 필수 테스트 | 판정 | 근거 |
+|---|---|---|
+| 0m · 149m · 150m 허용 | ✅ 자동 | E1 `ArrivalPolicyIT` 파라미터 테스트 3건(배송지 정북 오프셋, 서버 Haversine). 앱 사전 판정도 같은 값으로 단위 테스트(E2) |
+| 151m · 480m 거부 | ✅ 자동 / ✅ 에뮬 | E1 `409 ARRIVAL_TOO_FAR`, `details.distanceMeters` 151.0/480.0, 상태 IN_TRANSIT 유지. 실 GPS 경로도 151m 거부→149m 허용. E7: 라이더 앱 "배송지에서 2145m 떨어져 있습니다", 고객 도착 버튼 비활성 |
+| GPS 없음 → 재측정 | ✅ 자동 | E1 `422 LOCATION_REMEASURE_REQUIRED / LOCATION_MISSING`. 이전 담당 라이더의 위치는 새 담당 라이더 판정에 쓰지 않음(재배정 후 LOCATION_MISSING) |
+| 오래된 좌표 → 재측정 | ✅ 자동 / ✅ 에뮬 | E1 측정 31초 후 `LOCATION_STALE`(경과 31초), 재측정 후 30초 정각 허용. 시뮬레이션: 경로 끝 후 31초 무전송 → STALE, 정차 위치 1건 후 허용. E7: 경로 끝 40초 뒤에도 정차 위치 41건으로 "배송지에서 4m — 도착 처리 가능" → 도착 성공 |
+| 정확도 불량 → 재측정 | ✅ 자동 | E1 정확도 51m `LOCATION_INACCURATE`, 50m 허용, 정확도 없음 INACCURATE |
+| 관리자 예외 승인: 사유·감사 이력 | ✅ 자동 / ✅ 에뮬 | E1 480m 요청→중복 요청 멱등→라이더 승인 API 403→사유 없는 승인 400→승인: DB `distance_m 480.0, accuracy_m 5.0, decided_by, decided_at, reason_code`, 상태 이력 actor `ADMIN:ADMIN-TEST` + 사유·거리·정확도. 반려·재승인·요청 후 정상 도착 시 OUTDATED(CANCELLED 보존). E7: 라이더 앱에서 예외 요청(주소 좌표 오류) → 관리 화면 "도착 예외" 탭 클릭 승인(사유 미입력 시 안내) → 라이더 앱 실시간 "배송지 도착" 전환 |
+| 권한 없는 라이더 거부 | ✅ 자동 | E1 `403 NOT_ASSIGNED_RIDER` |
+| 잘못된 배송 상태 거부 | ✅ 자동 | E1 배송 출발 전(PICKED_UP)·완료 후 `409 INVALID_DELIVERY_STATUS` |
+| 중복 요청 멱등 | ✅ 자동 | E1 도착 후 5분 뒤(위치 오래됨) 재요청도 200, 도착 이력 1건 |
+| 시뮬레이션도 150m 검증, 우회 없음 | ✅ 자동 / ✅ 에뮬 | E1 경로 중간 도착 `ARRIVAL_TOO_FAR`. E4·E5 재실행(2026-11-02 12:03~12:05): FIXTURE 경로 끝 0.0m, 카카오 경로 끝 4.1m 로 판정 통과. 테스트 우회 기능 없음 |
+| PostgreSQL | ✅ 자동 | E8 재실행: 기존 DB(V1·V1000)에 V2 out-of-order 적용, 카카오 E2E 통과, 도착 이력 4.1m 기록 |
+| 운영 프로필 | ✅ 자동 | E1 `ProdProfileIT` 통과. 도착 정책값은 `application.yml`(전 프로필), 예외 승인 API `/api/admin/**` 는 운영에도 존재(ADMIN 전용) |
+| 실기기 GPS 로 150m 판정 | ⬜ 미검증 | 실기기·현장 필요. 실 GPS 정확도 50m 기준이 실내·단지에서 얼마나 실패하는지 측정 후 조정 필요(설정값 분리됨) |
+
 ## 요약
 
 | 판정 | 개수 | 항목 |
@@ -97,6 +115,7 @@
 
 ## 관찰 사항 (미수정)
 
+- local-test 기존 DB 에 새 운영 마이그레이션(V2)이 "버전 역순"이라 기동 실패 → local-test 만 Flyway `out-of-order` 허용(DECISIONS.md S-16). 테스트는 매번 새 DB 라 이 문제를 잡지 못했다.
 - 네트워크 오류 시 고객 화면에 예외 원문(`ClientException with SocketException … errno = 101 … uri=…`)이 그대로 표시된다. 고객용 문구로 바꾸는 것이 좋다.
 - 앱 재시작 시 로그인 토큰이 유지되지 않아 다시 로그인해야 한다(서버 주소는 유지). 테스트 앱 정책상 의도인지 확인 필요.
 - 라이더·배송지가 매우 가까운 상태에서 라이더 화면을 열면 초기 지도 맞춤이 과도하게 확대된다(최대 줌 제한 없음).

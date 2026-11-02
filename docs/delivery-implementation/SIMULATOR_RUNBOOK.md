@@ -40,6 +40,9 @@ $env:DELIVERY_AUTH_SECRET   = '<32자 이상 임의 값>'        # 선택. 없�
    - 진행 중 `일시정지`/`재개`, 배속 `1×/5×/10×`, `지금 장애 주입`
    - 화면 지표: 진행 거리·가상 경과·마지막 전송(실시각)·전송/최신반영·역순/중복/거부/지연·**고객 API 기준 위치**·ETA·오류. `SIMULATED`, `FIXTURE/KAKAO_DIRECTIONS` 배지 표시
 5. 재생이 `FINISHED` 가 되어도 배송은 `IN_TRANSIT` 그대로다. 라이더 앱에서 `고객 도착 → 사진 촬영 → 전달 완료`.
+   - 고객 도착은 **배송지 150m 이내 · 위치 측정 후 30초 이내 · 정확도 50m 이하**에서만 허용된다(DECISIONS.md A-01~A-04). 경로 중간에서는 거부된다.
+   - `FINISHED` 이후 재생기는 **배송지 정차 위치**를 계속 보낸다(화면 "배송지 정차", 최대 30분, 완료·취소·재배정 시 자동 중단). 그래서 재생이 끝나고 시간이 지나도 도착 판정이 가능하다.
+   - 거리·위치 문제로 도착할 수 없으면 라이더 앱 "도착 예외 요청" → 관리 화면 **도착 예외** 탭에서 처리 사유 입력 후 승인/반려. 시뮬레이터 전용 우회 기능은 없다.
 6. `종료` → `초기화`(READY 로 되돌아가 같은 경로 재실행 가능) 또는 `삭제`.
 
 버튼은 상태에 맞지 않으면 비활성화되며, 서버도 잘못된 순서를 `409 INVALID_SIMULATION_STATE` 등으로 거부한다.
@@ -55,7 +58,7 @@ $env:DELIVERY_AUTH_SECRET   = '<32자 이상 임의 값>'        # 선택. 없�
 | 일시정지/재개 | `POST …/{id}/pause` · `…/resume` | RUNNING ↔ PAUSED |
 | 배속 | `PUT …/{id}/rate {rate}` | 1/5/10 외 `400 INVALID_RATE` |
 | 장애 즉시 주입 | `POST …/{id}/faults {type, durationTicks?, durationSeconds?}` | RUNNING/PAUSED |
-| 종료 | `POST …/{id}/stop` | → `STOPPED` (작업 취소, 이후 전송 0) |
+| 종료 | `POST …/{id}/stop` | → `STOPPED` (작업 취소, 이후 전송 0). `FINISHED` 정차 전송 중이면 정차 전송만 중단 |
 | 초기화 | `POST …/{id}/reset` | FINISHED/STOPPED/FAILED/READY → `READY` (실행 중이면 `409 STOP_FIRST`) |
 | 상태 / 목록 / 삭제 | `GET …/{id}` · `GET /test-api/simulations` · `DELETE …/{id}` | |
 
@@ -79,4 +82,6 @@ $env:DELIVERY_AUTH_SECRET   = '<32자 이상 임의 값>'        # 선택. 없�
 | 배차 제안이 오지 않음 | 라이더가 `운행·신규배차` 상태인지, 이미 3건 수행 중인지, 근거리 MFC 는 대기 위치가 반경 3km 내·5분 이내인지 |
 | `ROUTE_ENDPOINT_MISMATCH` | FIXTURE 는 전용 테스트 배송지 T1 에서만 사용. 다른 주소는 `KAKAO_DIRECTIONS` |
 | `KAKAO_KEY_MISSING / KAKAO_QUOTA_EXCEEDED` | 서버 키 미설정 / 일 무료량 초과 — FIXTURE 사용 |
+| 고객 도착 `409 ARRIVAL_TOO_FAR` | 배송지 150m 밖. 재생이 끝날 때까지 기다리거나 도착 예외 요청 |
+| 고객 도착 `422 LOCATION_REMEASURE_REQUIRED` | 최신 위치가 30초 초과(정차 전송이 끝났거나 시나리오 종료) 또는 정확도 불량. 시나리오 `초기화` 후 재실행하거나 예외 요청 |
 | 고객 화면 위치가 안 바뀜 | 배송이 `PICKED_UP` 이전(공개 정책 P-05), 시나리오 FAILED(사유 확인), 고객 앱 연결 상태 칩 확인 |

@@ -83,17 +83,28 @@
 | `POST /api/rider/offers/{offerId}/view` | 상세 확인 기록(미응답 만료 사유 구분) |
 | `POST /api/rider/offers/{offerId}/accept` | `ASSIGNED` / `409 ALREADY_ASSIGNED, OFFER_EXPIRED, OFFER_NOT_ACTIVE, DELIVERY_CANCELLED, CAPACITY_EXCEEDED` / `403 NOT_YOUR_OFFER` |
 | `POST /api/rider/offers/{offerId}/reject` `{reason}` | |
-| `GET /api/rider/deliveries/{id}` | 배정 라이더만 (`403 NOT_ASSIGNED_RIDER`) |
+| `GET /api/rider/deliveries/{id}` | 배정 라이더만 (`403 NOT_ASSIGNED_RIDER`). `IN_TRANSIT`·`ARRIVED_AT_DESTINATION` 이면 `arrival{maxDistanceMeters, maxLocationAgeSeconds, maxAccuracyMeters, check{allowed, code, message, distanceMeters, accuracyMeters, locationAgeSeconds, locationSource}|null, exception{exceptionId, reasonCode, status, requestedAt, decisionNote, decidedAt}|null}` 포함 (2026-11-02 추가, 하위 호환) |
 | `POST …/arrive-mfc` | `ASSIGNED → ARRIVED_AT_MFC` |
 | `POST …/handover-scans` `{qrCode}` | `{result: HANDED_OVER|ALREADY_HANDED_OVER|HANDOVER_RESULT_UNKNOWN, handedOver, total, deliveryStatus}` / `409 INVALID_STATE, PACKAGES_NOT_READY, PACKAGE_NOT_IN_DELIVERY, PACKAGE_VOIDED, MFC 거절코드` / `400 QR_UNREADABLE` |
 | `POST …/start` | `PICKED_UP → IN_TRANSIT` / `409 HANDOVER_NOT_COMPLETED` |
 | `POST …/locations` `{points:[{seq, latitude, longitude, accuracyMeters, speedMps, heading, measuredAt}]}` (≤100) | 출처 **DEVICE_GPS 고정**. 점별 판정 반환. `403 NOT_ASSIGNED_RIDER`, `409 LOCATION_MODE_MISMATCH, LOCATION_NOT_ACCEPTED_IN_STATE` |
-| `POST …/arrive-destination` | `IN_TRANSIT → ARRIVED_AT_DESTINATION` (라이더 입력, GPS 거리는 기록만) |
+| `POST …/arrive-destination` | `IN_TRANSIT → ARRIVED_AT_DESTINATION` (라이더 입력 + **서버 도착 판정**, DECISIONS.md A-01~A-04). 이미 도착이면 멱등 200. `403 NOT_ASSIGNED_RIDER` / `409 INVALID_DELIVERY_STATUS`(배송 중 아님) / `409 ARRIVAL_TOO_FAR`(배송지 직선거리 150m 초과) / `422 LOCATION_REMEASURE_REQUIRED`(`details.reason`: `LOCATION_MISSING`·`LOCATION_STALE`(측정 후 30초 초과)·`LOCATION_INACCURATE`(정확도 50m 초과/없음)) / `503 POLICY_NOT_CONFIGURED`. 거부 응답 `details`: `distanceMeters, accuracyMeters, locationAgeSeconds, locationSource, maxDistanceMeters, maxLocationAgeSeconds, maxAccuracyMeters` |
+| `POST …/arrival-exceptions` `{reasonCode: GPS_ERROR|ADDRESS_COORDINATE_ERROR|COMPLEX_ENTRY|OTHER, note?}` | 정상 판정 불가 시 관리자 승인 요청. 요청 시점 판정(거리·정확도·경과·출처) 스냅샷 저장. 대기 요청이 있으면 그 요청 반환(`result: ALREADY_PENDING`). `400 REASON_REQUIRED, NOTE_REQUIRED(OTHER)` / `409 ARRIVAL_EXCEPTION_NOT_NEEDED(정상 판정 가능), INVALID_DELIVERY_STATUS` |
 | `POST …/complete` multipart `requestId, method(FACE_TO_FACE|NON_FACE_TO_FACE), photo, note?` | `{result: COMPLETED|ALREADY_COMPLETED, proofId, completedAt}` / `400 PROOF_PHOTO_REQUIRED, PROOF_PHOTO_INVALID(시그니처 판정)` / `409 INVALID_STATE, ALREADY_COMPLETED` |
 | `POST …/release` `{reason}` | 픽업 전 배차취소. 이후 `409 SUPPORT_REQUIRED` |
 
 ### 위치 점 판정 (`LocationVerdict`)
 `ACCEPTED_LATEST`(최신 반영) · `ACCEPTED_HISTORY`(최신보다 과거=역순, 저장만) · `STALE`(측정 후 P-06 초과 지연) · `DUPLICATE`(같은 seq) · `REJECTED_INVALID`(범위/NaN/음수 정확도/seq·시각 누락) · `REJECTED_FUTURE` · `REJECTED_ANOMALY`(P-07 초과 속도). 최신 위치는 `measuredAt` 이 더 새로운 정상 점으로만 갱신 — 역행 없음.
+
+### 고객 도착 예외 처리 — 관리자 (`ROLE_ADMIN`, 모든 프로필 · 2026-11-02 추가)
+
+| 요청 | 결과 |
+|---|---|
+| `GET /api/admin/arrival-exceptions?status=PENDING|APPROVED|REJECTED|CANCELLED` | 상태별 목록(없으면 최근 100건) |
+| `POST /api/admin/arrival-exceptions/{id}/approve` `{note}` | `IN_TRANSIT → ARRIVED_AT_DESTINATION`, 처리자·시각·사유 기록, 상태 이력 actor `ADMIN:{id}`. 재승인 `result: ALREADY_APPROVED`. `400 NOTE_REQUIRED` / `409 ARRIVAL_EXCEPTION_CLOSED` / `409 ARRIVAL_EXCEPTION_OUTDATED`(요청 이후 상태·배정 변경 → 요청은 `CANCELLED` 로 남음) |
+| `POST /api/admin/arrival-exceptions/{id}/reject` `{note}` | `REJECTED`, 배송 상태 불변 |
+
+고객 도착은 OMS 이벤트를 발행하지 않는다(§7 변경 없음). 배송 완료(`DeliveryCompleted`)와 별도 상태로 유지.
 
 ## 5. 고객 앱 → Delivery (`ROLE_CUSTOMER`)
 
