@@ -9,63 +9,22 @@ Future<void> main() async {
   runApp(const CustomerApp());
 }
 
-class CustomerApp extends StatefulWidget {
+class CustomerApp extends StatelessWidget {
   const CustomerApp({super.key, this.store});
 
   /// 테스트에서 메모리 저장소 주입용. 기본은 기기 보안 저장소.
   final SessionStore? store;
 
   @override
-  State<CustomerApp> createState() => _CustomerAppState();
-}
-
-class _CustomerAppState extends State<CustomerApp> {
-  late final SessionStore _store = widget.store ?? SessionStore('CUSTOMER');
-  Session? _session;
-  bool _restoring = true;
-  final _nav = GlobalKey<NavigatorState>();
-
-  @override
-  void initState() {
-    super.initState();
-    // 로그인 유지: 만료 전 토큰이 있으면 로그인 화면을 건너뛴다
-    _store.restore().then((s) {
-      if (!mounted) return;
-      setState(() {
-        _session = s;
-        _restoring = false;
-      });
-    });
-  }
-
-  Future<void> _loggedIn(Session s) async {
-    await _store.save(s);
-    setState(() => _session = s);
-  }
-
-  Future<void> _logout() async {
-    if (_session == null) return; // 여러 화면에서 동시에 401 을 받아도 한 번만
-    await _store.clear();
-    _nav.currentState?.popUntil((r) => r.isFirst); // 열린 상세 화면을 닫고 로그인 화면으로
-    setState(() => _session = null);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: _nav,
-      title: 'BARO-PICK 고객 (TEST)',
+    return SessionGate(
+      role: 'CUSTOMER',
+      appTitle: 'BARO-PICK 고객 (TEST)',
+      loginTitle: 'BARO-PICK 고객 테스트',
+      defaultUserId: 'C-TEST-01',
       theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
-      home: _restoring
-          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-          : _session == null
-              ? LoginScreen(
-                  title: 'BARO-PICK 고객 테스트',
-                  expectedRole: 'CUSTOMER',
-                  defaultUserId: 'C-TEST-01',
-                  onLoggedIn: _loggedIn,
-                )
-              : OrdersScreen(session: _session!, onLogout: _logout),
+      store: store,
+      home: (session, logout) => OrdersScreen(session: session, onLogout: logout),
     );
   }
 }

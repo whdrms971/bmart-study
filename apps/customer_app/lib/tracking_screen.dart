@@ -14,6 +14,12 @@ class TrackingScreen extends StatefulWidget {
 }
 
 class _TrackingScreenState extends State<TrackingScreen> {
+  /// 닫힌 화면(로그아웃·뒤로가기)에서 늦게 끝난 요청이 setState 를 호출해도 무시한다
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) super.setState(fn);
+  }
+
   final Map<String, Map<String, dynamic>> _deliveries = {};
   List<String> _order = [];
   String? _selected;

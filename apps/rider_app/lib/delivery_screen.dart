@@ -25,6 +25,12 @@ class DeliveryScreen extends StatefulWidget {
 }
 
 class _DeliveryScreenState extends State<DeliveryScreen> {
+  /// 닫힌 화면(로그아웃·뒤로가기)에서 늦게 끝난 요청이 setState 를 호출해도 무시한다
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) super.setState(fn);
+  }
+
   Map<String, dynamic>? _d;
   String? _msg;
   bool _msgOk = false;
@@ -88,6 +94,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     try {
       final d = await api.get('/api/rider/deliveries/${widget.deliveryId}') as Map<String, dynamic>;
       _setDelivery(d);

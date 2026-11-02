@@ -37,6 +37,10 @@ class ApiClient {
   final http.Client _http;
   static const _timeout = Duration(seconds: 12);
 
+  /// 인증 실패(401) 시 한 번 호출된다. 앱 최상위가 "이 세션"의 로그아웃을 연결한다 —
+  /// 화면마다 401 처리를 복사하지 않아도 모든 요청(폴링·백그라운드 전송 포함)에서 만료·서명 키 변경을 감지한다.
+  void Function()? onUnauthorized;
+
   Map<String, String> _headers({bool json = true}) => {
         if (json) 'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
@@ -82,6 +86,7 @@ class ApiClient {
       }
     }
     if (res.statusCode >= 200 && res.statusCode < 300) return data;
+    if (res.statusCode == 401 && token != null) onUnauthorized?.call();
     if (data is Map) {
       throw ApiException(res.statusCode, '${data['code'] ?? 'HTTP_${res.statusCode}'}', '${data['message'] ?? ''}');
     }

@@ -17,6 +17,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  /// 닫힌 화면(로그아웃·뒤로가기)에서 늦게 끝난 요청이 setState 를 호출해도 무시한다
+  @override
+  void setState(VoidCallback fn) {
+    if (mounted) super.setState(fn);
+  }
+
   Map<String, dynamic>? _me;
   List<dynamic> _offers = [];
   String? _msg;
@@ -81,10 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final o = await api.get('/api/rider/offers') as List<dynamic>;
       if (mounted) setState(() => _offers = o);
-    } on ApiException catch (e) {
-      // 토큰 만료·서명 키 변경: 3초 폴링에서 감지해 로그아웃 (그 외 오류는 다음 폴링에서 재시도)
-      if (e.isAuth && mounted) widget.onLogout();
-    }
+    } on ApiException catch (_) {/* 다음 폴링에서 재시도. 401 은 ApiClient.onUnauthorized 가 세션 로그아웃으로 처리 */}
   }
 
   /// 운행 중에는 30초마다 대기 위치를 보고(근거리 MFC 배차 반경 판정용)

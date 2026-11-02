@@ -7,6 +7,7 @@ export 'src/config.dart';
 export 'src/api_client.dart';
 export 'src/realtime.dart';
 export 'src/session.dart';
+export 'src/session_gate.dart';
 export 'src/login_screen.dart';
 export 'src/format.dart';
 export 'src/delivery_map.dart';
