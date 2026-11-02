@@ -85,6 +85,25 @@ public class EtaService {
         });
     }
 
+    /**
+     * 배송별 ETA 행 생성/갱신. 같은 배송의 첫 계산이 동시에 두 번 실행되면(비동기 재계산 + 관리자 강제 갱신, 또는 서버 여러 대)
+     * 둘 다 "행 없음"을 보고 INSERT 해 기본키 충돌이 난다 → 먼저 만들어진 행을 다시 읽어 갱신한다.
+     */
+    private DeliveryEta upsert(String deliveryId, java.util.function.Consumer<DeliveryEta> change) {
+        for (int attempt = 0; ; attempt++) {
+            try {
+                return tx.execute(s -> {
+                    DeliveryEta e = etas.findById(deliveryId).orElseGet(() -> new DeliveryEta(deliveryId));
+                    change.accept(e);
+                    return etas.saveAndFlush(e);
+                });
+            } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+                if (attempt >= 1) throw ex;
+                log.info("ETA 행 동시 생성 감지 delivery={} → 재조회 후 갱신", deliveryId);
+            }
+        }
+    }
+
     /** 동기 재계산 (테스트·관리자 강제 갱신용). */
     public DeliveryEta recomputeNow(String deliveryId) {
         Delivery d = deliveries.findById(deliveryId).orElse(null);
@@ -94,11 +113,7 @@ public class EtaService {
         double straight = com.baropick.delivery.common.Geo.distanceMeters(l.getLat(), l.getLng(), d.getDestLat(), d.getDestLng());
         if (straight < NEAR_DESTINATION_METERS) {
             // 카카오 길찾기는 출발·도착 5m 이내면 실패(result_code 104) — 호출하지 않고 "도착 지점 근처"로 기록
-            DeliveryEta near = tx.execute(s -> {
-                DeliveryEta e = etas.findById(deliveryId).orElseGet(() -> new DeliveryEta(deliveryId));
-                e.success(PROVIDER_NEAR, 0, (int) Math.round(straight), now);
-                return etas.save(e);
-            });
+            DeliveryEta near = upsert(deliveryId, e -> e.success(PROVIDER_NEAR, 0, (int) Math.round(straight), now));
             events.publishEvent(DeliveryChanged.of(deliveryId, "ETA"));
             return near;
         }
@@ -113,11 +128,9 @@ public class EtaService {
         }
         final KakaoClient.DirectionsResult res = r;
         final String error = err;
-        DeliveryEta saved = tx.execute(s -> {
-            DeliveryEta e = etas.findById(deliveryId).orElseGet(() -> new DeliveryEta(deliveryId));
+        DeliveryEta saved = upsert(deliveryId, e -> {
             if (res != null) e.success(PROVIDER, res.durationSeconds(), res.distanceMeters(), now);
             else e.failure(error, now);
-            return etas.save(e);
         });
         if (error != null) log.info("ETA 계산 실패 delivery={} {}", deliveryId, error);
         events.publishEvent(DeliveryChanged.of(deliveryId, "ETA"));
