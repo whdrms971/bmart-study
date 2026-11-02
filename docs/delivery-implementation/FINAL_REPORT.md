@@ -1,0 +1,78 @@
+# FINAL_REPORT — BARO-PICK Delivery 1차 구현·검증 보고
+
+> 작성일: 2026-11-02 · 브랜치 `feature/delivery-lab` · 상세 판정은 `TEST_MATRIX.md`
+> 이 보고서는 **실제로 실행한 결과만** 성공으로 적는다. 에뮬레이터 확인은 실기기 확인과 구분한다.
+
+## 1. 결론
+
+| 구분 | 상태 |
+|---|---|
+| Delivery 백엔드·Mock OMS/MFC·SIMULATED_ROUTE 재생기 | **구현·자동 검증 완료** (JUnit 44건, 모드 A E2E 3회 통과) |
+| React+TS 관리자 시뮬레이터 | **구현·브라우저 클릭 검증 완료** |
+| Flutter 고객·라이더 앱 | **구현, Android 에뮬레이터 2대에서 전체 흐름 확인** |
+| Android **실기기** 2대 E2E (모드 B 실 GPS 포함) | **미검증** — 실기기·현장 이동 필요 |
+
+D-01~D-35: ✅ 30 (자동 또는 에뮬레이터) / ◐ 2 / ⬜ 3. 실기기 기준으로 확인된 항목은 아직 없다.
+
+## 2. 진행 경과
+
+| 날짜 | 장소 | 내용 |
+|---|---|---|
+| 2026-10-31 | 노트북 `C:\development\Delivery` | 기준선·계획·결정 문서, 백엔드·시뮬레이터·관리 UI·두 앱 1차 구현 (`7168ebe`), 카카오 실호출 확인 |
+| 2026-11-02 | 데스크톱 `C:\PMart-Delivery` | 원격에서 클론, 환경 구성, 전 테스트 재실행, 에뮬레이터 앱 검증, 결함 4건 수정, README·TEST_MATRIX·FINAL_REPORT |
+
+## 3. 구현 범위
+
+- **delivery-service** (Spring Boot 4.1 / Java 21): 배송 요청 멱등 생성, 배차 제안·수락(동시 수락 단일 배정)·거절·만료·재배차, MFC 포장 QR 전량 인계 후 픽업 완료, 인계/취소 경합, 위치 수집 검증·최신 위치·STOMP 실시간 전파·고객 조회 권한, 카카오 Local/Directions 서버 어댑터와 ETA, 사진 증빙 완료, Transactional Outbox → Mock OMS inbox 멱등 소비. 운영 프로필에는 테스트 기능이 존재하지 않음.
+- **testsupport** (`local-test` 전용): Mock OMS/MFC, `SIMULATED_ROUTE` 결정적 재생 엔진(FIXTURE / KAKAO_DIRECTIONS, 1×/5×/10×, 일시정지·재개·종료·초기화, 장애 주입 7종), 제어 API.
+- **simulator-admin** (Vite + React + TS): 시뮬레이터 제어, Mock 조작, 배송 원장.
+- **apps**: `customer_app`, `rider_app`, `delivery_common` (카카오 지도, STOMP, GPS 전송, QR 인계, 사진 증빙).
+
+## 4. 실행 증거 (2026-11-02, 데스크톱)
+
+| 항목 | 결과 |
+|---|---|
+| `gradlew test` | 44건 통과 (6개 클래스) |
+| Flutter analyze / test (3 패키지) | 이슈 0 / 5건 통과 |
+| 관리 UI typecheck / build / UI 스모크(Chrome 클릭) | 통과 |
+| 모드 A E2E — FIXTURE / KAKAO_DIRECTIONS(H2) / KAKAO_DIRECTIONS(PostgreSQL 17) | 3회 모두 통과. 카카오 실경로 101~102점, ETA OK |
+| 에뮬레이터 2대 앱 조작 | 주문→배차 수락→MFC 도착→QR 인계(직접 입력)→배송 출발→실시간 마커(카카오 지도, 실제 도로)→고객 도착→카메라 촬영→전달 완료→Mock OMS COMPLETED. 자동 추적 OFF/복귀, 네트워크 차단·복구, 앱 재시작 복원 |
+
+보고서 원본은 `reports/runs/` (gitignore, 데스크톱에만 존재).
+
+## 5. 이번에 발견·수정한 결함
+
+| 커밋 | 내용 |
+|---|---|
+| `3d35eea` | 실행 스크립트가 같은 포트의 다른 프로그램(Docker 백엔드)을 강제 종료할 수 있었고, 다른 서비스의 health 응답을 기동 성공으로 오판 |
+| `ed9bd0c` | 배송 종료 후 고객 ETA 문구가 "배송 출발 후 표시됩니다"로 표시 |
+| `e3bc902` | 라이더 지도에 움직이지 않는 중복 라이더 마커 생성(비동기 경합) |
+| (이 보고서와 같은 커밋) | `stop-backend.ps1 -Port X` 가 다른 포트 서버의 런처 프로세스까지 종료 |
+
+## 6. 미검증 · 제약
+
+| 항목 | 이유 / 필요한 것 |
+|---|---|
+| D-21·D-23 실기기, D-22 근거리 실 GPS 이동, D-24 화면 꺼짐·백그라운드 위치 수집 | Android 실기기 2대, 안전한 짧은 이동 구간 |
+| D-35 Android 모의 GPS (선택) | 미실행 |
+| D-11·D-31 카카오 쿼터 초과·경로 없음 응답 | 실제 재현이 어려움. 어댑터 오류 응답 모킹 테스트 추가 권장 |
+| 실제 카메라로 QR 인식 | 에뮬레이터 카메라는 가상 장면 — 코드 직접 입력으로 대체함 |
+| 동시성(D-02, D-12)의 PostgreSQL 동작 | JUnit 이 H2 인메모리로 고정. PostgreSQL 은 순차 E2E 만 확인 |
+| 운영값 P-01~P-14 | local-test 임시값. 정책 확정 필요 (`DECISIONS.md` §2) |
+| 카카오 경로 | 자동차 길찾기 결과로 오토바이 합법 경로가 아닐 수 있음 |
+
+## 7. 후속 작업 (우선순위)
+
+1. **실기기 2대 검증** — README §3.1, §4 모드 B 절차. 결과를 TEST_MATRIX D-21~D-24 에 반영.
+2. JUnit 을 PostgreSQL(Testcontainers 또는 프로필 전환)로도 실행해 동시성 항목 재확인.
+3. 고객 화면 네트워크 오류 문구를 예외 원문 대신 사용자 문구로 변경.
+4. 앱 재시작 시 로그인 유지 여부 정책 결정.
+5. 카카오 오류 응답(쿼터·경로 없음) 모킹 테스트 추가.
+6. 근거리 지도 초기 맞춤의 최대 줌 제한.
+7. 운영값 P-01~P-14 확정.
+
+## 8. 다른 PC에서 이어갈 때
+
+- 클론 후 README §1~§3 순서로 환경 구성. **카카오 키 해시는 PC마다 추가 등록** 필요.
+- 비밀값(`DELIVERY_TEST_PASSCODE`, `KAKAO_REST_API_KEY`, `KAKAO_NATIVE_APP_KEY`, DB 비밀번호)은 저장소에 없다. 각 PC에서 사용자 환경변수 / `kakao.local.json` 으로 다시 설정한다.
+- Claude Code 대화 기록은 PC별로 저장되므로 `claude --continue` 로는 이어지지 않는다. 새 세션에서 이 보고서·TEST_MATRIX·CLAUDE.md 를 읽게 하면 된다.

@@ -10,7 +10,7 @@
 | `apps/rider_app` | 라이더 Android 앱 `com.baropick.delivery.rider` |
 | `apps/delivery_common` | 두 앱 공통(REST·STOMP·로그인·카카오 지도 위젯) |
 | `scripts/` | PowerShell 실행·종료·E2E 스크립트 |
-| `docs/delivery-implementation/` | BASELINE · PLAN · DECISIONS · CONTRACTS · TEST_MATRIX · SIMULATOR_RUNBOOK · FINAL_REPORT(작성 예정) |
+| `docs/delivery-implementation/` | BASELINE · PLAN · DECISIONS · CONTRACTS · TEST_MATRIX · SIMULATOR_RUNBOOK · FINAL_REPORT |
 | `docs/business/` | 원본 비즈니스 문서(business.zip) |
 
 ## 1. 사전 요구사항
@@ -43,6 +43,14 @@ $env:DELIVERY_TEST_PASSCODE = '<임의 값>'
 ```
 
 (사용 중 포트 확인: `Get-NetTCPConnection -LocalPort 8080 -State Listen`)
+
+**PostgreSQL 로 실행** (기본은 H2 파일 DB). 저장소에 compose 파일은 없으므로 컨테이너를 직접 띄운다:
+
+```powershell
+docker run -d --name delivery-pg -e POSTGRES_DB=delivery -e POSTGRES_USER=delivery -e POSTGRES_PASSWORD=<임의 값> -p 127.0.0.1:25432:5432 postgres:17-alpine
+$env:DELIVERY_DB_URL = 'jdbc:postgresql://127.0.0.1:25432/delivery'; $env:DELIVERY_DB_USER = 'delivery'; $env:DELIVERY_DB_PASSWORD = '<같은 값>'
+.\scripts\start-backend.ps1 -Background -Postgres      # Flyway 가 스키마 생성
+```
 
 테스트 계정: 고객 `C-TEST-01`, `C-TEST-02` / 라이더 `R-TEST-01~03` / 관리자 `ADMIN-TEST` (모두 같은 패스코드).
 자동 테스트: `cd delivery-service; .\gradlew.bat test` (카카오 실호출 테스트는 `.\gradlew.bat test -PkakaoLive`).
