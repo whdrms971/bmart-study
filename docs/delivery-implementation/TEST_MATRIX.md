@@ -27,6 +27,7 @@
 | E8 | `local-test,postgres` 프로필 서버(PostgreSQL 17.11 전용 컨테이너) + `e2e-mode-a.ps1 -RouteSource KAKAO_DIRECTIONS` | Flyway V1·V1000 적용, E2E 통과, PostgreSQL 테이블에 배송 1·위치 70·outbox 2행 — `reports/runs/mode-a-kakao_directions-20261102-111434.md` |
 | E9 | 에뮬레이터 모의 GPS(`adb emu geo fix`, 약 20m/2초) — 근거리 DEVICE_GPS 배송, 라이더 앱이 직접 위치 전송 | 아래 D-35, §A 실 GPS 행 |
 | E10 | `scripts\test-postgres.ps1` — 일회용 PostgreSQL 17 컨테이너에서 JUnit 전체 실행 | 통과. 행 잠금·동시성 항목(D-02, D-12 등) 포함 57건이 PostgreSQL 에서 실행(ProdProfileIT 2건은 자체 H2 설정, RoutePlaybackTest 7건은 DB 미사용). 컨테이너 자동 삭제 |
+| E11 | `scripts\load-test.ps1 -Riders 30 -DurationSeconds 60` — 일회용 PostgreSQL + 별도 서버, `simulator-admin/e2e/load-test.ts` | 오류 0, 최종 위치 30/30 일치, 이중 배정 0 (§D) |
 
 `reports/runs/` 는 `.gitignore` 대상이라 E4~E6·E8 보고서는 실행한 PC 에만 있다. 기본 `gradlew test`(E1) 는 H2(PostgreSQL 모드).
 
@@ -151,3 +152,14 @@
 | 실제 보관 기간의 법적 적합성 | ⬜ 확인 필요 | 위치정보법·개인정보보호법상 보관·파기 의무는 법무 확인 대상. 값은 환경변수로 조정 가능 |
 
 발견·수정(D-24 측정 중): 라이더 앱이 열린 상태에서 토큰이 무효가 되면(만료·서버 서명 키 변경) 3초 제안 폴링이 401 을 무시하고 대기 위치 보고만 "HTTP_401" 로 표시해, 로그인된 것처럼 보이지만 아무 요청도 되지 않았다. 폴링 401 시 로그아웃 + 열린 상세 화면 닫기로 수정. 에뮬레이터에서 앱을 연 채 서버 키를 바꾸면 약 8초 안에 로그인 화면으로 전환되는 것 확인.
+
+## D. 부하 테스트 · 교착 수정 · CI (2026-11-02)
+
+| 항목 | 판정 | 근거 |
+|---|---|---|
+| 부하: 라이더 30명 동시 주문→수락→인계→위치 전송 60초 | ✅ 자동 | E11 `scripts\load-test.ps1 -Riders 30` (일회용 PostgreSQL 17 + 포트 18082 의 local-test 서버, 부하 전용 계정 `R-LOAD-*`/`C-LOAD-*`). 오류 0건, 최종 위치 30/30 일치, 이중 배정 0건. 주문 생성 0.4초·인계 0.16초·위치 전송 p95 35ms |
+| 교착 ①: 실시간 전파가 커넥션 풀 고갈 | ✅ 자동 | 수정 전 E11 에서 주문 1건이 10초 이상 멈춤. 원인: 커밋 후 리스너가 `REQUIRES_NEW` 로 두 번째 DB 연결을 요구 → 풀 고갈. 메시지를 같은 트랜잭션의 `beforeCommit` 에서 만들고 `afterCommit` 에 전송하도록 변경 |
+| 교착 ②: 인계 스캔이 MFC 호출 동안 행 잠금 유지 | ✅ 자동 | 스캔을 준비(짧은 트랜잭션, 포장 `HANDOVER_UNKNOWN`) → 트랜잭션 밖 MFC 호출 → 반영(짧은 트랜잭션)으로 분리. 그 사이 취소·무효화된 포장은 `DELIVERY_CANCELLED` |
+| 취소 차단 기준 (cancel-vs-handover S3-b) | ✅ 자동 | 취소는 **HANDED_OVER 포장이 있을 때만** 차단(인계 확인 중 상태로 미리 막지 않음). 재배정 해제는 기존대로 움직인 포장이 있으면 차단. D-12 3회 반복 통과, E1 72건 통과 |
+| 앱 401 공통 처리 | ✅ 자동 / ✅ 에뮬 | E2 `session_gate_test` 2건(401 → 저장 세션 삭제·상세 화면 닫힘, 이전 세션의 늦은 401 무시). E7: 고객 앱 추적 화면·라이더 홈을 연 채 서버를 다른 서명 키로 재시작 → 두 앱 모두 20초 안에 로그인 화면 |
+| GitHub Actions CI (`.github/workflows/delivery-ci.yml`) | ⬜ 미검증 | 백엔드(H2·PostgreSQL 매트릭스)·Flutter 3개 패키지·관리 화면 빌드. 원격 push 후 첫 실행 결과를 확인해야 한다 |

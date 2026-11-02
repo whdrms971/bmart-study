@@ -55,6 +55,8 @@ $env:DELIVERY_DB_URL = 'jdbc:postgresql://127.0.0.1:25432/delivery'; $env:DELIVE
 테스트 계정: 고객 `C-TEST-01`, `C-TEST-02` / 라이더 `R-TEST-01~03` / 관리자 `ADMIN-TEST` (모두 같은 패스코드).
 자동 테스트: `cd delivery-service; .\gradlew.bat test` (H2. 카카오 실호출 테스트는 `.\gradlew.bat test -PkakaoLive`).
 PostgreSQL 에서 전체 테스트: `.\scripts\test-postgres.ps1` (일회용 컨테이너를 띄우고 끝나면 삭제, Docker 필요).
+부하 테스트: `.\scripts\load-test.ps1 -Riders 30 -DurationSeconds 60` (일회용 PostgreSQL + 포트 18082 의 별도 서버·부하 전용 계정, 끝나면 정리. Docker·Node 필요. 실행 중인 개발 서버·DB 는 건드리지 않음).
+CI: `.github/workflows/delivery-ci.yml` — push/PR 시 백엔드(H2·PostgreSQL), Flutter 3개 패키지 analyze·test, 관리 화면 빌드. 비밀값을 쓰지 않으며 카카오 실호출 테스트는 제외.
 관리 화면 UI 스모크(설치된 Chrome 사용): `cd simulator-admin; $env:UI_URL='http://127.0.0.1:5173'; $env:API_URL='http://127.0.0.1:8080'; npm run ui-smoke`
 
 ## 3. Android 앱 (A=고객, B=라이더)
