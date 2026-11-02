@@ -53,7 +53,8 @@ $env:DELIVERY_DB_URL = 'jdbc:postgresql://127.0.0.1:25432/delivery'; $env:DELIVE
 ```
 
 테스트 계정: 고객 `C-TEST-01`, `C-TEST-02` / 라이더 `R-TEST-01~03` / 관리자 `ADMIN-TEST` (모두 같은 패스코드).
-자동 테스트: `cd delivery-service; .\gradlew.bat test` (카카오 실호출 테스트는 `.\gradlew.bat test -PkakaoLive`).
+자동 테스트: `cd delivery-service; .\gradlew.bat test` (H2. 카카오 실호출 테스트는 `.\gradlew.bat test -PkakaoLive`).
+PostgreSQL 에서 전체 테스트: `.\scripts\test-postgres.ps1` (일회용 컨테이너를 띄우고 끝나면 삭제, Docker 필요).
 관리 화면 UI 스모크(설치된 Chrome 사용): `cd simulator-admin; $env:UI_URL='http://127.0.0.1:5173'; $env:API_URL='http://127.0.0.1:8080'; npm run ui-smoke`
 
 ## 3. Android 앱 (A=고객, B=라이더)

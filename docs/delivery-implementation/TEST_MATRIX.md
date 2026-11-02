@@ -17,20 +17,18 @@
 
 | ID | 실행 | 결과 |
 |---|---|---|
-| E1 | `delivery-service\gradlew.bat test` (7개 클래스) | **61건** 통과, 실패 0 (고객 도착 정책 추가 후. 이전 44건 + `ArrivalPolicyIT` 16 + `SimulationIT` 1) |
-| E2 | `flutter analyze` / `flutter test` (delivery_common, customer_app, rider_app) | 이슈 0, 테스트 13건 통과 (rider_app 9: 도착 판정 5·길안내 링크 3·위젯 1) |
+| E1 | `delivery-service\gradlew.bat test` (8개 클래스) | **66건** 통과, 실패 0 (이전 44건 + `ArrivalPolicyIT` 16 + `SimulationIT` 1 + `KakaoFailureIT` 5) |
+| E2 | `flutter analyze` / `flutter test` (delivery_common, customer_app, rider_app) | 이슈 0, 테스트 16건 통과 (delivery_common 6: 오류 문구 3 포함 / customer_app 1 / rider_app 9: 도착 판정 5·길안내 링크 3·위젯 1) |
 | E3 | `simulator-admin` `npm run typecheck` / `npm run build` | 통과 |
 | E4 | `scripts\e2e-mode-a.ps1 -Rate 10` (FIXTURE) | 통과 — `reports/runs/mode-a-fixture-20261102-092955.md` |
 | E5 | `scripts\e2e-mode-a.ps1 -RouteSource KAKAO_DIRECTIONS -Rate 10` | 통과, 카카오 실경로 101점 3,574m, ETA OK — `reports/runs/mode-a-kakao_directions-20261102-105259.md` |
 | E6 | `simulator-admin` `npm run ui-smoke` (설치된 Chrome, 버튼 클릭) | 통과 — `reports/runs/ui-smoke-1793579530207.md` |
 | E7 | 에뮬레이터 2대(고객 `emulator-5554`, 라이더 `emulator-5556`, API 37 x86_64 + ARM 변환) 앱 수동 조작 | 아래 각 항목 |
 | E8 | `local-test,postgres` 프로필 서버(PostgreSQL 17.11 전용 컨테이너) + `e2e-mode-a.ps1 -RouteSource KAKAO_DIRECTIONS` | Flyway V1·V1000 적용, E2E 통과, PostgreSQL 테이블에 배송 1·위치 70·outbox 2행 — `reports/runs/mode-a-kakao_directions-20261102-111434.md` |
-
 | E9 | 에뮬레이터 모의 GPS(`adb emu geo fix`, 약 20m/2초) — 근거리 DEVICE_GPS 배송, 라이더 앱이 직접 위치 전송 | 아래 D-35, §A 실 GPS 행 |
+| E10 | `scripts\test-postgres.ps1` — 일회용 PostgreSQL 17 컨테이너에서 JUnit 전체 실행 | 통과. 행 잠금·동시성 항목(D-02, D-12 등) 포함 57건이 PostgreSQL 에서 실행(ProdProfileIT 2건은 자체 H2 설정, RoutePlaybackTest 7건은 DB 미사용). 컨테이너 자동 삭제 |
 
-`reports/runs/` 는 `.gitignore` 대상이라 E4~E6·E8 보고서는 실행한 PC 에만 있다.
-
-> JUnit(E1)은 테스트 코드에 H2(PostgreSQL 모드) 인메모리 URL 이 고정되어 있어 PostgreSQL 에서 실행하지 않았다. 동시성 항목(D-02, D-12 — 행 잠금)은 **H2 에서만 검증**되었고, PostgreSQL 에서는 E8 의 순차 흐름만 확인했다.
+`reports/runs/` 는 `.gitignore` 대상이라 E4~E6·E8 보고서는 실행한 PC 에만 있다. 기본 `gradlew test`(E1) 는 H2(PostgreSQL 모드).
 
 ## D-01 ~ D-19 서버 정책
 
@@ -46,7 +44,7 @@
 | D-08 | 위도 91 / 경도 181 / 정확도 -1 / NaN | ✅ 자동 | E1 "D-08 …" |
 | D-09 | 역순·중복·지연·단절 GPS | ✅ 자동 | E1 "D-09 …" + `SimulationIT` D-32 장애 주입 |
 | D-10 | 지도 첫 실행 / 자동 추적 OFF / 수동 복귀 | ✅ 에뮬 | E7: 카카오 지도 첫 표시 정상(두 앱). 자동 추적 ON 시 라이더 중심 이동. **OFF 후 지도를 끌어 옮기면 13초간 위치 수신(02:18:41→02:18:54)이 계속되어도 화면 유지**. "라이더 위치 보기" → 라이더 위치로 복귀하며 자동 추적 ON |
-| D-11 | 경로 API 실패·쿼터 초과 | ◐ 부분 | E1 "D-11 / D-31 경로 API 키 없음 → ETA 'UNAVAILABLE', 가짜 ETA 없음". E7: 키 없을 때 고객 화면 "예상시간 확인 불가: KAKAO_KEY_MISSING". **쿼터 초과·카카오 오류 응답은 미재현** |
+| D-11 | 경로 API 실패·쿼터 초과 | ✅ 자동 | E1 `KakaoFailureIT`(로컬 가짜 카카오 서버): 정상 ETA(600초) 후 쿼터 초과(429) → UNAVAILABLE, 이전 ETA·도착 예정 시각 미노출, 복구 시 다시 OK. 경로 없음(result_code 104)·서버 오류(500)·응답 지연(타임아웃)·비정상 vertexes → 각각 `reasonCode` 와 함께 UNAVAILABLE. 주소 검색 쿼터 초과 → `503 KAKAO_QUOTA_EXCEEDED`. 고객 문구에는 내부 오류 원문 없음. 키 없음은 기존 테스트 |
 | D-12 | 인계·취소 동시 발생 | ✅ 자동 | E1 "D-12 … 둘 중 하나만 확정" |
 | D-13 | 완료 요청 중복 | ✅ 자동 | E1 "D-13 …", E4·E5 재전송 → `ALREADY_COMPLETED` |
 | D-14 | 완료 이벤트 전송 중 장애 | ✅ 자동 | E1 "D-14 … 재전송 후 OMS 1회만 적용" |
@@ -71,7 +69,7 @@
 | D-28 | 중복 시작·잘못된 상태 전이 | ✅ 자동 | E1 "D-28 …", E4·E5 `ALREADY_RUNNING` |
 | D-29 | 인계 전 START / 재배차 후 기존 재생기 | ✅ 자동 | E1 "D-29 …" 2건, E4·E5 인계 전 START `HANDOVER_NOT_COMPLETED` |
 | D-30 | 경로 끝까지 이동해도 자동완료 없음 | ✅ 자동 / ✅ 에뮬 | E1, E4·E5 경로 끝에서 `IN_TRANSIT` 유지. E7: 고객 화면 "배송 중" 유지 → 라이더 앱 고객 도착·사진·전달 완료로만 완료 |
-| D-31 | 키 없음 / 한도 초과 / 경로 없음 | ◐ 부분 | E1 "D-31 FIXTURE 끝점 불일치 차단 / KAKAO 키 없음 → FAILED". **한도 초과·경로 없음 응답은 미재현** |
+| D-31 | 키 없음 / 한도 초과 / 경로 없음 | ✅ 자동 | E1 키 없음·FIXTURE 끝점 불일치(기존) + `KakaoFailureIT`: 쿼터 초과·경로 없음·비정상 응답 → `503` 각 코드, 시나리오 FAILED, 경로 0m·미리보기 없음·시작 409(직선 대체 없음). 정상 응답이면 카카오 경로로 READY |
 | D-32 | 장애 주입 7종 | ✅ 자동 | E1 "D-32 …" + `RoutePlaybackTest` dropAndDelay / stopHoldsPosition |
 | D-33 | 운영 프로필에서 UI/API/주입 | ✅ 자동 | E1 `ProdProfileIT` 2건 |
 | D-34 | 기기 없이 자동 모드 A | ✅ 자동 | E4, E5 |
@@ -100,8 +98,8 @@
 
 | 판정 | 개수 | 항목 |
 |---|---|---|
-| ✅ (자동 또는 에뮬) | 31 | D-01~10, D-12~21, D-23, D-25~30, D-32~35 (D-35 는 모의 GPS) |
-| ◐ 부분 | 2 | D-11, D-31 |
+| ✅ (자동 또는 에뮬) | 33 | D-01~21, D-23, D-25~35 (D-35 는 모의 GPS) |
+| ◐ 부분 | 0 | |
 | ⬜ 미검증 | 2 | D-22, D-24 |
 
 > D-21·D-23 은 ✅ 에뮬로 세었지만 CLAUDE.md 기준 Android 실기기 확인은 남아 있다.
@@ -114,13 +112,15 @@
 | `ed9bd0c` | 배송 종료 후에도 고객 ETA 문구가 "배송 출발 후 표시됩니다" | E7 완료 후 고객 화면 |
 | `e3bc902` | 라이더 지도에 움직이지 않는 라이더 마커 중복 생성(지도 준비와 위치 갱신 경합) | E7 라이더 앱 지도. 수정 후 재생 중 5회 재진입 시 마커 1개 |
 | `d0f82f5` | 라이더 앱 길안내: 카카오맵 앱 미설치 시 웹 길찾기에 출발지가 비어 라이더가 직접 입력해야 함(에뮬레이터 Chrome 에서는 현위치 측정 시간 초과). 웹 링크에 알고 있는 위치(실 GPS=기기 마지막 위치, SIMULATED=서버 최신 위치)를 출발지로 포함 | E7 길안내 버튼. 수정 후 "현위치 → 배송지 자동차 10분 3.5km" 경로 즉시 표시. 단위 테스트 3건 추가. **카카오맵 앱 설치 상태의 길안내 시작은 미검증** |
+| `6c870dd` | **ETA 동시 첫 계산 시 기본키 충돌**: 위치 반영이 띄운 비동기 계산과 관리자 강제 재계산(또는 서버 여러 대)이 동시에 "행 없음"을 보고 INSERT → `delivery_eta` 기본키 위반으로 계산 실패. 충돌 시 재조회 후 갱신 | E1 `KakaoFailureIT` 작성 중 발견. 회귀 테스트(4건 동시 계산)가 수정 전 코드에서 실패, 수정 후 통과 확인 |
+| `96711dc` | **고객 화면에 내부 오류 노출**: ETA 문구에 "KAKAO_KEY_MISSING: KAKAO_REST_API_KEY 가 서버에 설정되지 않았습니다" 같은 서버 설정 상태가, 네트워크 오류에 `ClientException … errno = 101 … uri=…` 원문이 표시됨. ETA 는 고객 문구 + `reasonCode` 분리, 앱은 `userMessage`(원문은 `detail`) | E7 화면 관찰 → 서버·Flutter 테스트로 원문 미포함 검증 |
+| `e9a4e91` | `start-backend.ps1` 기동 실패 시 프로세스가 남음(09:28 기동 실패 서버가 계속 실행) | 로그 `Application run failed`/조기 종료/시간 초과 시 런처·자식 java 정리, pid 파일 삭제. DB 주소를 닫힌 포트로 강제 실패시켜 잔여 프로세스 0 확인 |
 | `1fd3ee1` | **라이더 앱 실 GPS 위치 스트림이 전혀 동작하지 않음**: 포그라운드 위치 서비스 `enableWakeLock: true` 인데 `WAKE_LOCK` 권한 누락 → 스트림 시작 시 `SecurityException`. 플랫폼 오류가 Dart 스트림 onError 로 오지 않아 화면은 "실GPS 전송 ON · 보냄 0" 으로 정상처럼 보였다(대기 위치 1회 측정은 동작). 실기기에서도 동일하게 실패했을 결함. `WAKE_LOCK` 권한 추가 + 시작 후 위치를 한 번도 못 받으면 20초 뒤 화면 경고(감시 타이머) | E9 모의 GPS 이동 중 보냄 0 → logcat `Neither user … has android.permission.WAKE_LOCK`. 수정 후 보냄/반영 19/19 |
 | `057dfd9` | `stop-backend.ps1 -Port X` 가 pid 파일의 **다른 포트** Delivery 서버(런처 프로세스)까지 종료 | E8 서버(18081) 종료 시 18080 서버의 런처가 종료됨(실서버는 자식 프로세스라 생존). 지정 포트 점유 프로세스와 그 런처만 종료하도록 수정, 18081·8080(Docker) 대상 실행 시 18080 영향 없음 확인 |
 
 ## 관찰 사항 (미수정)
 
 - local-test 기존 DB 에 새 운영 마이그레이션(V2)이 "버전 역순"이라 기동 실패 → local-test 만 Flyway `out-of-order` 허용(DECISIONS.md S-16). 테스트는 매번 새 DB 라 이 문제를 잡지 못했다.
-- 네트워크 오류 시 고객 화면에 예외 원문(`ClientException with SocketException … errno = 101 … uri=…`)이 그대로 표시된다. 고객용 문구로 바꾸는 것이 좋다.
 - 앱 재시작 시 로그인 토큰이 유지되지 않아 다시 로그인해야 한다(서버 주소는 유지). 테스트 앱 정책상 의도인지 확인 필요.
 - 라이더·배송지가 매우 가까운 상태에서 라이더 화면을 열면 초기 지도 맞춤이 과도하게 확대된다(최대 줌 제한 없음).
 - 카카오 경로는 "자동차 길찾기" 결과로, 오토바이 합법 경로가 아닐 수 있다(시뮬레이터 표시 문구에 명시됨).
