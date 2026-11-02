@@ -6,6 +6,8 @@
     <!-- 화면 꺼짐 시 위치 유지: 알림이 표시되는 위치 포그라운드 서비스 (Android 14+ 서비스 유형 권한) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <!-- geolocator 포그라운드 위치 서비스 enableWakeLock: 없으면 위치 스트림 시작이 SecurityException 으로 실패한다 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- QR 인계 스캔·전달 사진 -->
     <uses-permission android:name="android.permission.CAMERA"/>

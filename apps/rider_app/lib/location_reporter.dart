@@ -75,8 +75,25 @@ class LocationReporter {
       status.value = _snap(error: '위치 수신 오류: $e');
     });
     _flush = Timer.periodic(const Duration(seconds: 3), (_) => flush());
+    _startedAt = DateTime.now();
+    // 플랫폼 쪽 스트림 시작 실패(권한 누락 등)는 onError 로 오지 않고 로그만 남는다 → 수신 공백을 감시해 화면에 표시
+    _watchdog = Timer.periodic(const Duration(seconds: 5), (_) => _checkSilence());
     status.value = _snap();
     return null;
+  }
+
+  static const silenceWarning = Duration(seconds: 20);
+  DateTime? _startedAt;
+  Timer? _watchdog;
+
+  /// 시작 후 한 번도 위치를 받지 못한 경우만 경고(스트림 미동작). 정차 중에는 distanceFilter 로 새 위치가 없을 수 있어 경고하지 않는다.
+  void _checkSilence() {
+    final started = _startedAt;
+    if (started == null || _lastPosition != null) return;
+    final gap = DateTime.now().difference(started);
+    if (gap > silenceWarning) {
+      status.value = _snap(error: '위치 수신 없음 ${gap.inSeconds}초 — 위치 서비스·권한·GPS 수신 상태를 확인하세요');
+    }
   }
 
   Position? _lastPosition;
@@ -162,6 +179,8 @@ class LocationReporter {
   Future<void> stop() async {
     _flush?.cancel();
     _flush = null;
+    _watchdog?.cancel();
+    _watchdog = null;
     await _sub?.cancel();
     _sub = null;
     status.value = _snap();
