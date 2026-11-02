@@ -10,7 +10,7 @@
 | `apps/rider_app` | 라이더 Android 앱 `com.baropick.delivery.rider` |
 | `apps/delivery_common` | 두 앱 공통(REST·STOMP·로그인·카카오 지도 위젯) |
 | `scripts/` | PowerShell 실행·종료·E2E 스크립트 |
-| `docs/delivery-implementation/` | BASELINE · PLAN · DECISIONS · CONTRACTS · TEST_MATRIX · SIMULATOR_RUNBOOK · FINAL_REPORT |
+| `docs/delivery-implementation/` | BASELINE · PLAN · DECISIONS · CONTRACTS · TEST_MATRIX · SIMULATOR_RUNBOOK · RIDER_NAVIGATION · FINAL_REPORT |
 | `docs/business/` | 원본 비즈니스 문서(business.zip) |
 
 ## 1. 사전 요구사항
