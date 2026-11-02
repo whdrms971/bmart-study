@@ -17,7 +17,7 @@
 
 | ID | 실행 | 결과 |
 |---|---|---|
-| E1 | `delivery-service\gradlew.bat test` (11개 클래스) | **73건** 통과, 실패 0 (이전 44건 + 식별자 검증 1 + `ArrivalPolicyIT` 16 + `SimulationIT` 1 + `KakaoFailureIT` 5 + `ProdProfileIT` 1 + `DispatchHoursTest` 3 + `DispatchHoursIT` 1 + `RetentionIT` 1) |
+| E1 | `delivery-service\gradlew.bat test` (11개 클래스) | **74건** 통과, 실패 0 (이전 44건 + 식별자 검증 1 + 주소 검색 호출 제한 1 + `ArrivalPolicyIT` 16 + `SimulationIT` 1 + `KakaoFailureIT` 5 + `ProdProfileIT` 1 + `DispatchHoursTest` 3 + `DispatchHoursIT` 1 + `RetentionIT` 1) |
 | E2 | `flutter analyze` / `flutter test` (delivery_common, customer_app, rider_app) | 이슈 0, 테스트 16건 통과 (delivery_common 6: 오류 문구 3 포함 / customer_app 1 / rider_app 9: 도착 판정 5·길안내 링크 3·위젯 1) |
 | E3 | `simulator-admin` `npm run typecheck` / `npm run build` | 통과 |
 | E4 | `scripts\e2e-mode-a.ps1 -Rate 10` (FIXTURE) | 통과 — `reports/runs/mode-a-fixture-20261102-092955.md` |
@@ -163,3 +163,4 @@
 | 취소 차단 기준 (cancel-vs-handover S3-b) | ✅ 자동 | 취소는 **HANDED_OVER 포장이 있을 때만** 차단(인계 확인 중 상태로 미리 막지 않음). 재배정 해제는 기존대로 움직인 포장이 있으면 차단. D-12 3회 반복 통과, E1 통과 |
 | 앱 401 공통 처리 | ✅ 자동 / ✅ 에뮬 | E2 `session_gate_test` 2건(401 → 저장 세션 삭제·상세 화면 닫힘, 이전 세션의 늦은 401 무시). E7: 고객 앱 추적 화면·라이더 홈을 연 채 서버를 다른 서명 키로 재시작 → 두 앱 모두 20초 안에 로그인 화면 |
 | GitHub Actions CI (`.github/workflows/delivery-ci.yml`) | ✅ 자동 | 2026-11-02 첫 실행(run 41402923200, 커밋 `c04421d`) 4개 작업 모두 성공: backend(h2)·backend(postgres)·flutter(analyze+test)·simulator-admin(build). 배포 단계 없음(테스트만) |
+| 주소 검색 호출 제한 (SEC-03, 분당 10회) | ✅ 자동 / ✅ 에뮬 | E1 `KakaoFailureIT.placeSearchRateLimit`: 10회 200 → 11번째 429 `RATE_LIMITED`(retryAfterSeconds 1~61, 카카오 미호출) → 다른 고객 200 → 30초 뒤 여전히 429 → 61초 뒤 200. `ProdProfileIT` 운영 값 10 확인. 개발 서버(카카오 실호출) API 10회 200 → 11번째 429. E7: 고객 앱 테스트 주문 화면에서 검색 → "주소 검색은 1분에 10회까지 가능합니다. 41초 후 다시 시도하세요" 표시 |

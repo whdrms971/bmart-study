@@ -61,6 +61,7 @@ delivery:
     location-max-speed-mps: ${DELIVERY_LOCATION_MAX_SPEED_MPS:50}              # P-07 비정상 이동 속도(m/s)
     eta-min-interval-seconds: ${DELIVERY_ETA_MIN_INTERVAL_S:60}                # P-08 ETA 재계산 최소 간격
     max-concurrent-deliveries: ${DELIVERY_MAX_CONCURRENT_DELIVERIES:3}         # P-10 라이더 동시 수행 최대 건수
+    place-search-per-minute: ${DELIVERY_PLACE_SEARCH_PER_MINUTE:10}            # SEC-03 고객 주소 검색 사용자별 분당 호출 제한
   # P-09 보관 기간 — 지난 위치 이력·증빙 사진 파일을 매일 자동 삭제 (법정 의무는 법무 확인 대상)
   retention:
     location-history-days: ${DELIVERY_RETENTION_LOCATION_DAYS:30}

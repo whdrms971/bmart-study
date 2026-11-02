@@ -111,7 +111,7 @@
 - `GET /api/customer/orders/{orderId}/tracking` → `{orderId, deliveries:[CustomerDelivery], serverTime}`. 본인 주문 아니면 `404 ORDER_NOT_FOUND`(존재 여부 비노출).
   - `CustomerDelivery`: `status, statusLabel, locationMode, simulated, destination, riderLocationVisible, rider{latitude, longitude, accuracyMeters, measuredAt, receivedAt, source, ageSeconds}|null, eta{status: OK|UNAVAILABLE|NOT_APPLICABLE, etaSeconds, distanceMeters, computedAt, estimatedArrivalAt, provider, message(고객 표시용, 내부 오류 원문 없음), reasonCode(UNAVAILABLE 사유 코드: KAKAO_QUOTA_EXCEEDED·ROUTE_NOT_FOUND·KAKAO_UNREACHABLE 등, 2026-11-02 추가)}, packages{total, handedOver}, updatedAt, …, serverTime`
   - 라이더 위치는 정책 P-05 시점부터 종료 전까지만. 다른 고객 정보·라이더 전체 경로 미포함.
-- `GET /api/customer/places?query=` — 카카오 Local 검색(서버 키). 실패 `503 KAKAO_*`.
+- `GET /api/customer/places?query=` — 카카오 Local 검색(서버 키). 실패 `503 KAKAO_*`. 고객별 **분당 10회**(최근 60초 이동 구간, 설정 `delivery.policy.place-search-per-minute`, 환경변수 `DELIVERY_PLACE_SEARCH_PER_MINUTE`) 초과 시 `429 RATE_LIMITED`, `details.retryAfterSeconds`·`limitPerMinute`. 거절된 호출은 카카오로 보내지 않고 횟수에도 넣지 않는다.
 
 ## 6. 실시간 (STOMP over WebSocket `/ws`)
 

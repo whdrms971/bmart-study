@@ -68,7 +68,8 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
         _msg = _results.isEmpty ? '검색 결과가 없습니다' : null;
       });
     } on ApiException catch (e) {
-      setState(() => _msg = '주소 검색 실패(카카오 Local): $e');
+      // 호출 제한(분당 10회) 초과는 서버 안내 문구("N초 후 다시 시도")를 그대로 보여준다
+      setState(() => _msg = e.code == 'RATE_LIMITED' ? e.userMessage : '주소 검색 실패(카카오 Local): $e');
     } finally {
       setState(() => _busy = false);
     }

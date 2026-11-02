@@ -210,6 +210,25 @@ class KakaoFailureIT extends IntegrationTestBase {
     }
 
     @Test
+    @DisplayName("SEC-03 주소 검색 분당 10회: 11번째 429(카카오 미호출), 다른 고객은 영향 없음, 60초 뒤 다시 허용")
+    void placeSearchRateLimit() {
+        String q = "/api/customer/places?query=" + java.net.URLEncoder.encode("해운대", StandardCharsets.UTF_8);
+        mclock().advance(java.time.Duration.ofHours(1)); // 다른 테스트의 호출 기록과 겹치지 않게
+        for (int i = 1; i <= 10; i++) assertThat(get("C-TEST-02", q).status()).as("call %d", i).isEqualTo(200);
+        int kakaoCalls = calls.get();
+        Resp r = get("C-TEST-02", q);
+        assertThat(r.status()).isEqualTo(429);
+        assertThat(r.text("/code")).isEqualTo("RATE_LIMITED");
+        assertThat(r.body().path("details").path("retryAfterSeconds").asLong()).isBetween(1L, 61L);
+        assertThat(calls.get()).as("거절된 호출은 카카오로 가지 않음").isEqualTo(kakaoCalls);
+        assertThat(get("C-TEST-01", q).status()).isEqualTo(200);
+        mclock().advance(java.time.Duration.ofSeconds(30));
+        assertThat(get("C-TEST-02", q).status()).as("30초 뒤에도 아직 10회가 구간 안").isEqualTo(429);
+        mclock().advance(java.time.Duration.ofSeconds(31));
+        assertThat(get("C-TEST-02", q).status()).isEqualTo(200);
+    }
+
+    @Test
     @DisplayName("ETA 첫 계산이 동시에 여러 번 실행돼도 기본키 충돌 없이 한 행으로 수렴 (회귀: delivery_eta 중복 INSERT)")
     void concurrentFirstComputation() throws Exception {
         Resp o = createOrder("C-TEST-01", NEAR_MFC, 35.1810, 129.0790, 2000, 1);

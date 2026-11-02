@@ -68,6 +68,7 @@ class ProdProfileIT {
         assertThat(p.locationMaxSpeedMps()).isEqualTo(50.0);                 // P-07
         assertThat(p.etaMinIntervalSeconds()).isEqualTo(60);                 // P-08
         assertThat(p.maxConcurrentDeliveries()).isEqualTo(3);                // P-10
+        assertThat(p.placeSearchPerMinute()).isEqualTo(10);                  // SEC-03
         assertThat(props.retention().locationHistoryDays()).isEqualTo(30);   // P-09
         assertThat(props.retention().proofPhotoDays()).isEqualTo(90);        // P-09
         assertThat(props.retention().purgeEnabled()).isTrue();
