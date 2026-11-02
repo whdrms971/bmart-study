@@ -3,6 +3,20 @@ import 'dart:async';
 import 'package:delivery_common/delivery_common.dart';
 import 'package:flutter/material.dart';
 
+/// 고객 화면의 "도착 예정" 문구. 남은 시간 계산 결과(카카오 경로)만 "약 N분 (HH:mm 도착 예상)"으로 바꿔 보여주고,
+/// 배송지 근처(provider=NEAR_DESTINATION)·확인 불가·출발 전·종료 등은 서버가 보낸 문구를 그대로 보여준다
+/// (예: "약 0분" 대신 "배송지 근처 (직선 4m) — 라이더의 도착·전달 처리를 기다리는 중").
+String etaLabel(Map<String, dynamic> eta) {
+  final message = '${eta['message'] ?? ''}';
+  final seconds = eta['etaSeconds'] as num?;
+  if (eta['status'] != 'OK' || eta['provider'] == 'NEAR_DESTINATION' || seconds == null) {
+    return message.isNotEmpty ? message : '도착 예상 시간을 확인할 수 없습니다';
+  }
+  final arrival = DateTime.tryParse('${eta['estimatedArrivalAt']}')?.toLocal();
+  final at = arrival == null ? '' : ' (${arrival.hour}:${arrival.minute.toString().padLeft(2, '0')} 도착 예상)';
+  return '약 ${(seconds / 60).ceil()}분$at · ${hhmm(eta['computedAt'] as String?)} 계산';
+}
+
 /// 주문 배송 추적. 데이터는 전부 Delivery 서버(REST 최초 조회 + STOMP 구독)에서 온다 — 화면에서 마커를 임의로 움직이지 않는다.
 class TrackingScreen extends StatefulWidget {
   const TrackingScreen({super.key, required this.session, required this.orderId});
@@ -192,13 +206,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
       age = serverTime == null ? base : base + DateTime.now().toUtc().difference(serverTime.toUtc()).inSeconds.clamp(0, 86400);
     }
     final stale = age != null && age > 30;
-    String etaText;
-    if (eta['status'] == 'OK') {
-      final arrival = DateTime.tryParse('${eta['estimatedArrivalAt']}')?.toLocal();
-      etaText = '약 ${((eta['etaSeconds'] as num) / 60).ceil()}분 (${arrival == null ? '' : '${arrival.hour}:${arrival.minute.toString().padLeft(2, '0')} 도착 예상'}) · ${hhmm(eta['computedAt'] as String?)} 계산';
-    } else {
-      etaText = '${eta['message']}';
-    }
+    final etaText = etaLabel(eta);
     return Material(
       elevation: 8,
       child: Padding(
