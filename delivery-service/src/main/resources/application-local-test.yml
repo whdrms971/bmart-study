@@ -21,10 +21,9 @@ delivery:
     # 비어 있으면 같은 서버의 Mock MFC를 사용
     base-url: ${DELIVERY_MFC_BASE_URL:}
   policy:
-    offer-ttl-seconds: 60            # P-01 TEST-ONLY
+    # P-01 offer-ttl-seconds, P-10 max-concurrent-deliveries, P-02 dispatch-radius-meters 는 확정되어 application.yml 로 이동
     max-dispatch-attempts: 3         # P-03 TEST-ONLY
     rider-location-freshness-seconds: 300
-    max-concurrent-deliveries: 3     # P-10 TEST-ONLY
     expose-rider-location-from: PICKED_UP   # P-05 TEST-ONLY
     location-future-skew-seconds: 30        # P-06 TEST-ONLY
     location-max-delay-seconds: 120         # P-06 TEST-ONLY
@@ -46,7 +45,7 @@ delivery:
       longitude: ${DELIVERY_NEAR_MFC_LNG:129.0756}
       location-mode: DEVICE_GPS
       radius-policy: ENFORCE
-      radius-meters: 3000              # P-02 TEST-ONLY
+      # radius-meters 생략 → P-02 확정 기본값(delivery.policy.dispatch-radius-meters = 3000) 적용
   simulation:
     enabled: true
     tick-real-ms: 1000

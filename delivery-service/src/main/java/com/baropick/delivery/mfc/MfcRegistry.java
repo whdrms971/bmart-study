@@ -30,11 +30,13 @@ public class MfcRegistry {
             if (p.id() == null || p.latitude() == null || p.longitude() == null || p.locationMode() == null || p.radiusPolicy() == null) {
                 throw new IllegalStateException("MFC 설정 누락(id/latitude/longitude/location-mode/radius-policy): " + p.id());
             }
-            if (p.radiusPolicy() == RadiusPolicy.ENFORCE && p.radiusMeters() == null) {
-                throw new IllegalStateException("radius-policy=ENFORCE 인 MFC는 radius-meters 가 필요합니다: " + p.id());
+            // P-02: MFC 별 radius-meters 가 없으면 정책 기본값(delivery.policy.dispatch-radius-meters) 사용
+            Integer radius = p.radiusMeters() != null ? p.radiusMeters() : props.policy().dispatchRadiusMeters();
+            if (p.radiusPolicy() == RadiusPolicy.ENFORCE && radius == null) {
+                throw new IllegalStateException("radius-policy=ENFORCE 인 MFC는 radius-meters 또는 delivery.policy.dispatch-radius-meters 가 필요합니다: " + p.id());
             }
             sites.put(p.id(), new MfcSite(p.id(), p.name(), p.virtual(), p.latitude(), p.longitude(), p.locationMode(),
-                    p.radiusPolicy(), p.radiusMeters()));
+                    p.radiusPolicy(), radius));
         }
     }
 

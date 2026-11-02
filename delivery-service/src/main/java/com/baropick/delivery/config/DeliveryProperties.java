@@ -27,7 +27,7 @@ public record DeliveryProperties(
         if (auth == null) auth = new Auth(null, 720, null);
         if (outbox == null) outbox = new Outbox(null, 2000L);
         if (mfcClient == null) mfcClient = new MfcClient(null);
-        if (policy == null) policy = new Policy(null, null, null, null, null, null, null, null, null, null);
+        if (policy == null) policy = new Policy(null, null, null, null, null, null, null, null, null, null, null);
         if (mfcs == null) mfcs = List.of();
         if (simulation == null) simulation = new Simulation(false, 1000L);
         if (testAccounts == null) testAccounts = new TestAccounts(null, List.of(), List.of(), List.of());
@@ -49,7 +49,9 @@ public record DeliveryProperties(
             Integer locationMaxDelaySeconds,
             Double locationMaxSpeedMps,
             Integer etaMinIntervalSeconds,
-            String proofStorageDir) {
+            String proofStorageDir,
+            /** P-02 근거리 배차 반경 기본값(m). radius-policy=ENFORCE 인 MFC 에 radius-meters 가 없을 때 사용 (2026-11-02 결정 3000) */
+            Integer dispatchRadiusMeters) {
 
         public static <T> T require(T v, String name) {
             if (v == null) {

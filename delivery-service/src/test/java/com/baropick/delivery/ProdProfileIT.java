@@ -51,6 +51,21 @@ class ProdProfileIT {
     }
 
     @Test
+    @DisplayName("prod: 확정 정책값 적용 — P-01 60초, P-02 3000m, P-10 3건, 고객 도착 150m/30초/50m. 미확정 값은 미설정(기능 차단)")
+    void prodDecidedPolicies() {
+        var props = ctx.getBean(com.baropick.delivery.config.DeliveryProperties.class);
+        assertThat(props.policy().offerTtlSeconds()).isEqualTo(60);
+        assertThat(props.policy().dispatchRadiusMeters()).isEqualTo(3000);
+        assertThat(props.policy().maxConcurrentDeliveries()).isEqualTo(3);
+        assertThat(props.arrival().maxDistanceMeters()).isEqualTo(150.0);
+        assertThat(props.arrival().maxLocationAgeSeconds()).isEqualTo(30);
+        assertThat(props.arrival().maxAccuracyMeters()).isEqualTo(50.0);
+        // 미확정(P-03 재시도 횟수, P-05 위치 공개 시점 등)은 운영에서 기본값이 없어야 한다
+        assertThat(props.policy().maxDispatchAttempts()).isNull();
+        assertThat(props.policy().exposeRiderLocationFrom()).isNull();
+    }
+
+    @Test
     @DisplayName("D-33 prod + local-test 동시 활성화 → 기동 실패")
     void mixedProfilesRejected() {
         assertThatThrownBy(() -> {
