@@ -9,7 +9,9 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       host: '127.0.0.1',
-      port: 5173,
+      // 다른 프로젝트가 5173 을 쓰는 PC 에서는 VITE_PORT 로 바꾼다. 다른 포트로 조용히 넘어가지 않도록 strictPort.
+      port: Number(env.VITE_PORT ?? 5173),
+      strictPort: true,
       proxy: {
         '/api': backend,
         '/test-api': backend,

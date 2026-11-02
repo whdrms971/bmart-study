@@ -25,6 +25,12 @@ if (-not $env:DELIVERY_AUTH_SECRET) {
     Write-Warning 'DELIVERY_AUTH_SECRET 미설정: 서버 재기동마다 토큰이 무효화됩니다(앱 재로그인 필요).'
 }
 
+$busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($busy) {
+    $owner = (Get-Process -Id $busy.OwningProcess -ErrorAction SilentlyContinue).ProcessName
+    throw "포트 $Port 를 이미 다른 프로세스($owner, PID $($busy.OwningProcess))가 사용 중입니다. -Port 로 다른 포트를 지정하세요. 예: -Port 18080"
+}
+
 $env:SPRING_PROFILES_ACTIVE = if ($Postgres) { 'local-test,postgres' } else { 'local-test' }
 $env:PORT = "$Port"
 
@@ -50,6 +56,7 @@ try {
         Write-Host "백그라운드 기동 PID=$($p.Id), 로그=$log"
         for ($i = 0; $i -lt 90; $i++) {
             Start-Sleep -Seconds 2
+            if ($p.HasExited) { throw "서버 프로세스가 종료되었습니다(exit $($p.ExitCode)). $log 확인" }
             try {
                 $h = Invoke-RestMethod "http://127.0.0.1:$Port/actuator/health" -TimeoutSec 2
                 if ($h.status -eq 'UP') { Write-Host '서버 준비 완료 (health UP)'; return }
