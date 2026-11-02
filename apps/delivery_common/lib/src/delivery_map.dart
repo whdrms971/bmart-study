@@ -91,7 +91,17 @@ class _DeliveryMapState extends State<DeliveryMap> {
     _initialFitDone = true;
   }
 
-  Future<void> _syncRider() async {
+  /// 라이더 마커 갱신을 직렬화한다. 지도 준비(_onReady)와 위치 갱신(didUpdateWidget)이 겹치면
+  /// 둘 다 _riderPoi == null 을 보고 addPoi 를 호출해 움직이지 않는 중복 마커가 남던 문제 방지.
+  Future<void> _riderOp = Future.value();
+
+  Future<void> _syncRider() {
+    final next = _riderOp.then((_) => _syncRiderNow());
+    _riderOp = next.catchError((_) {});
+    return next;
+  }
+
+  Future<void> _syncRiderNow() async {
     final c = _c;
     if (c == null || _riderStyle == null) return;
     final r = widget.rider;
