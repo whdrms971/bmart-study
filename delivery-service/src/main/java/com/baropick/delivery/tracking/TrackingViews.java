@@ -16,8 +16,17 @@ public final class TrackingViews {
     public record RiderPosition(double latitude, double longitude, Double accuracyMeters, Instant measuredAt, Instant receivedAt,
                                 String source, long ageSeconds) {}
 
+    /**
+     * message: 고객·라이더 화면에 그대로 보여도 되는 문구 (내부 오류·설정 상태를 담지 않는다).
+     * reasonCode: 확인 불가 사유 코드(KAKAO_QUOTA_EXCEEDED 등). 상세 원인은 관리자용 ETA 원장(lastError)에만 남긴다.
+     */
     public record Eta(String status, Integer etaSeconds, Integer distanceMeters, Instant computedAt, Instant estimatedArrivalAt,
-                      String provider, String message) {}
+                      String provider, String message, String reasonCode) {
+        public Eta(String status, Integer etaSeconds, Integer distanceMeters, Instant computedAt, Instant estimatedArrivalAt,
+                   String provider, String message) {
+            this(status, etaSeconds, distanceMeters, computedAt, estimatedArrivalAt, provider, message, null);
+        }
+    }
 
     public record PackageSummary(int total, int handedOver) {}
 

@@ -110,7 +110,7 @@ while ($true) {
 Log "재생 종료 상태=$($st.state) 진행 $([math]::Round($st.progressedMeters))/$([math]::Round($st.totalMeters))m 가상경과 $([math]::Round($st.virtualElapsedMs/1000))s 실경과 $([math]::Round(((Get-Date)-$t0).TotalSeconds))s"
 Log "전송 $($st.counters.sent) / 최신반영 $($st.counters.acceptedLatest) / 고객 API 에서 관측한 서로 다른 위치 $($seen.Count)개"
 $tr = (Call cust GET "/api/customer/orders/$($order.orderId)/tracking").deliveries[0]
-Log "고객 조회: 상태 $($tr.status) simulated=$($tr.simulated) 출처 $($tr.rider.source) ETA=$($tr.eta.status) $($tr.eta.message)"
+Log "고객 조회: 상태 $($tr.status) simulated=$($tr.simulated) 출처 $($tr.rider.source) ETA=$($tr.eta.status) $($tr.eta.message)$(if ($tr.eta.reasonCode) { " [$($tr.eta.reasonCode)]" })"
 if ($tr.status -ne 'IN_TRANSIT') { throw "경로 끝에서 상태가 바뀜(자동완료 의심): $($tr.status)" }
 Log '경로 끝 도달 후에도 배송 상태 IN_TRANSIT 유지 (자동 완료 없음) 확인'
 

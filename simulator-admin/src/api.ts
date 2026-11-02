@@ -183,7 +183,10 @@ export interface Eta {
   computedAt: string | null;
   estimatedArrivalAt: string | null;
   provider: string | null;
+  /** 고객 화면용 문구 (내부 오류 원문 없음) */
   message: string;
+  /** 확인 불가 사유 코드 (KAKAO_QUOTA_EXCEEDED 등) */
+  reasonCode?: string | null;
 }
 
 export interface CustomerView {

@@ -152,7 +152,8 @@ public class TrackingQueryService {
             return new Eta(EtaStatus.NOT_APPLICABLE.name(), null, null, null, null, null, "배송 출발 후 표시됩니다");
         }
         if (policy.etaMinIntervalSeconds() == null) {
-            return new Eta(EtaStatus.UNAVAILABLE.name(), null, null, null, null, null, "예상시간 확인 불가 (ETA 정책 미설정)");
+            return new Eta(EtaStatus.UNAVAILABLE.name(), null, null, null, null, null, "도착 예상 시간을 제공하지 않습니다",
+                    "ETA_POLICY_NOT_CONFIGURED");
         }
         DeliveryEta e = etas.findById(d.getId()).orElse(null);
         if (e == null) return new Eta(EtaStatus.UNAVAILABLE.name(), null, null, null, null, null, "도착예상시간 확인 중");
@@ -165,8 +166,16 @@ public class TrackingQueryService {
             return new Eta("OK", e.getEtaSeconds(), e.getDistanceMeters(), e.getComputedAt(), arrival, e.getProvider(),
                     "카카오모빌리티 자동차 경로 기준 (실시각 기준, 시뮬레이션 배속 미반영)");
         }
-        String last = e.getComputedAt() == null ? "" : " (마지막 정상 계산 " + e.getComputedAt() + ")";
+        // 고객 화면 문구에는 내부 오류 원문(예: "KAKAO_REST_API_KEY 가 서버에 설정되지 않았습니다")을 넣지 않는다. 코드만 별도 필드로.
         return new Eta(EtaStatus.UNAVAILABLE.name(), null, null, e.getComputedAt(), null, e.getProvider(),
-                "예상시간 확인 불가: " + (e.getLastError() == null ? "" : e.getLastError()) + last);
+                "도착 예상 시간을 지금 확인할 수 없습니다. 라이더 위치는 계속 갱신됩니다", reasonCode(e.getLastError()));
+    }
+
+    /** "KAKAO_QUOTA_EXCEEDED: 카카오 API 오류(429) …" → "KAKAO_QUOTA_EXCEEDED" */
+    static String reasonCode(String lastError) {
+        if (lastError == null || lastError.isBlank()) return "ETA_UNAVAILABLE";
+        int i = lastError.indexOf(':');
+        String code = (i > 0 ? lastError.substring(0, i) : lastError).strip();
+        return code.matches("[A-Z0-9_]{2,60}") ? code : "ETA_UNAVAILABLE";
     }
 }

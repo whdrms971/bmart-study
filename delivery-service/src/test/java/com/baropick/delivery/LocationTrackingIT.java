@@ -159,7 +159,8 @@ class LocationTrackingIT extends IntegrationTestBase {
         JsonNode e = get("C-TEST-01", "/api/customer/orders/" + orderOf(d) + "/tracking").at("/deliveries/0/eta");
         assertThat(e.path("status").asString()).isEqualTo("UNAVAILABLE");
         assertThat(e.path("etaSeconds").isNull()).isTrue();
-        assertThat(e.path("message").asString()).contains("KAKAO_KEY_MISSING");
+        assertThat(e.path("reasonCode").asString()).isEqualTo("KAKAO_KEY_MISSING");
+        assertThat(e.path("message").asString()).doesNotContain("KAKAO").doesNotContain("서버에 설정");
     }
 
     private String orderOf(String deliveryId) {

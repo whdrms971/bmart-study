@@ -35,7 +35,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       });
     } on ApiException catch (e) {
       if (e.isAuth) return widget.onLogout();
-      setState(() => _error = e.toString());
+      setState(() => _error = e.userMessage);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

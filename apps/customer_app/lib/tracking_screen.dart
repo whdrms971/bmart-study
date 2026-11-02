@@ -50,7 +50,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
       });
       _maybeStop();
     } on ApiException catch (e) {
-      setState(() => _error = e.status == 404 ? '주문을 찾을 수 없습니다(본인 주문만 조회 가능)' : e.toString());
+      setState(() => _error = e.status == 404 ? '주문을 찾을 수 없습니다(본인 주문만 조회 가능)' : e.userMessage);
     }
   }
 

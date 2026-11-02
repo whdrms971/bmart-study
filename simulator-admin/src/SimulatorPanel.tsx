@@ -355,7 +355,7 @@ export function SimulatorPanel() {
               <tr><th>고객 화면 위치</th><td colSpan={3}>{detail?.customer.rider
                 ? `${detail.customer.rider.latitude.toFixed(6)}, ${detail.customer.rider.longitude.toFixed(6)} (${detail.customer.rider.source}, ${detail.customer.rider.ageSeconds}초 전)`
                 : detail?.customer.riderLocationVisible === false ? '공개 시점 전/종료' : '—'}</td></tr>
-              <tr><th>ETA</th><td colSpan={3}>{eta ? (eta.status === 'OK' ? `${Math.round((eta.etaSeconds ?? 0) / 60)}분 (${eta.provider}, ${eta.computedAt ? new Date(eta.computedAt).toLocaleTimeString() : ''})` : eta.message) : '—'}</td></tr>
+              <tr><th>ETA</th><td colSpan={3}>{eta ? (eta.status === 'OK' ? `${Math.round((eta.etaSeconds ?? 0) / 60)}분 (${eta.provider}, ${eta.computedAt ? new Date(eta.computedAt).toLocaleTimeString() : ''})` : `${eta.message}${eta.reasonCode ? ` [${eta.reasonCode}]` : ''}`) : '—'}</td></tr>
               {status.lastError && <tr><th>오류</th><td colSpan={3} className="error">{status.lastError}</td></tr>}
             </tbody>
           </table>

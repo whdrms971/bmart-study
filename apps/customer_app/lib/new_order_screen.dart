@@ -51,7 +51,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
         _mfcId = m.isNotEmpty ? m.first['id'] as String : null;
       });
     } on ApiException catch (e) {
-      setState(() => _msg = e.toString());
+      setState(() => _msg = e.userMessage);
     }
   }
 

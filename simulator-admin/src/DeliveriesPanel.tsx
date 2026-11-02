@@ -59,7 +59,7 @@ export function DeliveriesPanel() {
               <button onClick={() => act('재배차 재개', `/test-api/admin/deliveries/${detail.delivery.deliveryId}/resume-dispatch`)}>배차 재개</button>
               <button onClick={() => act('ETA 재계산', `/test-api/admin/deliveries/${detail.delivery.deliveryId}/eta/recompute`)}>ETA 재계산(카카오 1회)</button>
             </div>
-            <p>ETA: {detail.customer.eta.status === 'OK' ? `${Math.round((detail.customer.eta.etaSeconds ?? 0) / 60)}분` : detail.customer.eta.message}</p>
+            <p>ETA: {detail.customer.eta.status === 'OK' ? `${Math.round((detail.customer.eta.etaSeconds ?? 0) / 60)}분` : `${detail.customer.eta.message}${detail.customer.eta.reasonCode ? ` [${detail.customer.eta.reasonCode}]` : ''}`}</p>
             <h3>위치 판정 집계</h3>
             <p>{Object.entries(detail.locationVerdicts).map(([k, v]) => `${k} ${v}`).join(' · ')}</p>
             <div className="cols">

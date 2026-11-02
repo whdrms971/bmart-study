@@ -5,17 +5,28 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 /// 서버 오류 응답 {code, message} 를 그대로 보존한다. 화면은 서버 판정을 기준으로 안내한다.
+/// [detail]: 통신 예외 원문 등 기술 정보 (로그·디버그용, 고객 화면에 표시하지 않음)
 class ApiException implements Exception {
-  ApiException(this.status, this.code, this.message);
+  ApiException(this.status, this.code, this.message, {this.detail});
   final int status;
   final String code;
   final String message;
+  final String? detail;
 
   bool get isAuth => status == 401;
   bool get isNetwork => status == 0;
 
+  /// 고객에게 보여줄 문구. 오류 코드·예외 원문을 섞지 않는다.
+  String get userMessage => switch (code) {
+        'NETWORK' => '인터넷 연결을 확인해 주세요. 연결되면 자동으로 다시 불러옵니다',
+        'TIMEOUT' => '서버 응답이 늦어지고 있습니다. 잠시 후 다시 불러옵니다',
+        _ when status == 401 => '로그인이 만료되었습니다. 다시 로그인해 주세요',
+        _ when status >= 500 => '일시적인 문제로 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요',
+        _ => message.isNotEmpty ? message : '요청을 처리하지 못했습니다',
+      };
+
   @override
-  String toString() => '$code: $message';
+  String toString() => detail == null ? '$code: $message' : '$code: $message ($detail)';
 }
 
 class ApiClient {
@@ -59,7 +70,7 @@ class ApiClient {
       // 타임아웃은 실패가 아니라 "결과 불명" — 호출측은 최신 상태를 재조회한다
       throw ApiException(0, 'TIMEOUT', '서버 응답 지연 — 결과를 다시 조회하세요');
     } catch (e) {
-      throw ApiException(0, 'NETWORK', '서버에 연결할 수 없습니다 ($e)');
+      throw ApiException(0, 'NETWORK', '서버에 연결할 수 없습니다', detail: '$e');
     }
     final text = utf8.decode(res.bodyBytes);
     dynamic data;
