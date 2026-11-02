@@ -17,7 +17,7 @@
 
 | ID | 실행 | 결과 |
 |---|---|---|
-| E1 | `delivery-service\gradlew.bat test` (11개 클래스) | **72건** 통과, 실패 0 (이전 44건 + `ArrivalPolicyIT` 16 + `SimulationIT` 1 + `KakaoFailureIT` 5 + `ProdProfileIT` 1 + `DispatchHoursTest` 3 + `DispatchHoursIT` 1 + `RetentionIT` 1) |
+| E1 | `delivery-service\gradlew.bat test` (11개 클래스) | **73건** 통과, 실패 0 (이전 44건 + 식별자 검증 1 + `ArrivalPolicyIT` 16 + `SimulationIT` 1 + `KakaoFailureIT` 5 + `ProdProfileIT` 1 + `DispatchHoursTest` 3 + `DispatchHoursIT` 1 + `RetentionIT` 1) |
 | E2 | `flutter analyze` / `flutter test` (delivery_common, customer_app, rider_app) | 이슈 0, 테스트 16건 통과 (delivery_common 6: 오류 문구 3 포함 / customer_app 1 / rider_app 9: 도착 판정 5·길안내 링크 3·위젯 1) |
 | E3 | `simulator-admin` `npm run typecheck` / `npm run build` | 통과 |
 | E4 | `scripts\e2e-mode-a.ps1 -Rate 10` (FIXTURE) | 통과 — `reports/runs/mode-a-fixture-20261102-092955.md` |
@@ -160,6 +160,6 @@
 | 부하: 라이더 30명 동시 주문→수락→인계→위치 전송 60초 | ✅ 자동 | E11 `scripts\load-test.ps1 -Riders 30` (일회용 PostgreSQL 17 + 포트 18082 의 local-test 서버, 부하 전용 계정 `R-LOAD-*`/`C-LOAD-*`). 오류 0건, 최종 위치 30/30 일치, 이중 배정 0건. 주문 생성 0.4초·인계 0.16초·위치 전송 p95 35ms |
 | 교착 ①: 실시간 전파가 커넥션 풀 고갈 | ✅ 자동 | 수정 전 E11 에서 주문 1건이 10초 이상 멈춤. 원인: 커밋 후 리스너가 `REQUIRES_NEW` 로 두 번째 DB 연결을 요구 → 풀 고갈. 메시지를 같은 트랜잭션의 `beforeCommit` 에서 만들고 `afterCommit` 에 전송하도록 변경 |
 | 교착 ②: 인계 스캔이 MFC 호출 동안 행 잠금 유지 | ✅ 자동 | 스캔을 준비(짧은 트랜잭션, 포장 `HANDOVER_UNKNOWN`) → 트랜잭션 밖 MFC 호출 → 반영(짧은 트랜잭션)으로 분리. 그 사이 취소·무효화된 포장은 `DELIVERY_CANCELLED` |
-| 취소 차단 기준 (cancel-vs-handover S3-b) | ✅ 자동 | 취소는 **HANDED_OVER 포장이 있을 때만** 차단(인계 확인 중 상태로 미리 막지 않음). 재배정 해제는 기존대로 움직인 포장이 있으면 차단. D-12 3회 반복 통과, E1 72건 통과 |
+| 취소 차단 기준 (cancel-vs-handover S3-b) | ✅ 자동 | 취소는 **HANDED_OVER 포장이 있을 때만** 차단(인계 확인 중 상태로 미리 막지 않음). 재배정 해제는 기존대로 움직인 포장이 있으면 차단. D-12 3회 반복 통과, E1 통과 |
 | 앱 401 공통 처리 | ✅ 자동 / ✅ 에뮬 | E2 `session_gate_test` 2건(401 → 저장 세션 삭제·상세 화면 닫힘, 이전 세션의 늦은 401 무시). E7: 고객 앱 추적 화면·라이더 홈을 연 채 서버를 다른 서명 키로 재시작 → 두 앱 모두 20초 안에 로그인 화면 |
 | GitHub Actions CI (`.github/workflows/delivery-ci.yml`) | ⬜ 미검증 | 백엔드(H2·PostgreSQL 매트릭스)·Flutter 3개 패키지·관리 화면 빌드. 원격 push 후 첫 실행 결과를 확인해야 한다 |

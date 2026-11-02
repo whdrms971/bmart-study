@@ -7,7 +7,7 @@
 
 | 구분 | 상태 |
 |---|---|
-| Delivery 백엔드·Mock OMS/MFC·SIMULATED_ROUTE 재생기 | **구현·자동 검증 완료** (JUnit 72건 — H2·PostgreSQL, 모드 A E2E 3회, 라이더 30명 부하 테스트 통과) |
+| Delivery 백엔드·Mock OMS/MFC·SIMULATED_ROUTE 재생기 | **구현·자동 검증 완료** (JUnit 73건 — H2·PostgreSQL, 모드 A E2E 3회, 라이더 30명 부하 테스트 통과) |
 | React+TS 관리자 시뮬레이터 | **구현·브라우저 클릭 검증 완료** |
 | Flutter 고객·라이더 앱 | **구현, Android 에뮬레이터 2대에서 전체 흐름 확인** |
 | Android **실기기** 2대 E2E (모드 B 실 GPS 포함) | **미검증** — 실기기·현장 이동 필요 |
@@ -32,7 +32,7 @@ D-01~D-35: ✅ 33 (자동 또는 에뮬레이터) / ◐ 1 (D-24) / ⬜ 1 (D-22).
 
 | 항목 | 결과 |
 |---|---|
-| `gradlew test` | 72건 통과 (11개 클래스). `scripts\test-postgres.ps1` 로 PostgreSQL 17 에서도 통과 |
+| `gradlew test` | 73건 통과 (11개 클래스). `scripts\test-postgres.ps1` 로 PostgreSQL 17 에서도 통과 |
 | `scripts\load-test.ps1 -Riders 30` | 오류 0, 이중 배정 0, 최종 위치 30/30 일치, 위치 전송 p95 35ms (TEST_MATRIX §D) |
 | Flutter analyze / test (3 패키지) | 이슈 0 / 5건 통과 |
 | 관리 UI typecheck / build / UI 스모크(Chrome 클릭) | 통과 |
