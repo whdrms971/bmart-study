@@ -213,16 +213,18 @@ class DeliveryLifecycleIT extends IntegrationTestBase {
             Future<Resp> cancel = ex.submit(() -> { go.await(); return post("C-TEST-01", "/test-api/mock-oms/orders/" + orderId + "/cancel", null); });
             go.countDown();
             Resp s = scan.get();
-            cancel.get();
+            Resp c = cancel.get();
             ex.shutdown();
             String st = status(d);
             String mfcStatus = get("ADMIN-TEST", "/test-api/mock-mfc/deliveries/" + d + "/packages").at("/0/status").asString();
+            String diag = "round " + round + " scan=" + s.status() + " " + s.body() + " cancel=" + c.body() + " history="
+                    + get("ADMIN-TEST", "/test-api/admin/deliveries/" + d).at("/history");
             if (s.status() == 200 && "HANDED_OVER".equals(s.text("/result"))) {
-                assertThat(st).isEqualTo("PICKED_UP");
-                assertThat(mfcStatus).isEqualTo("HANDED_OVER");
+                assertThat(st).as(diag).isEqualTo("PICKED_UP");
+                assertThat(mfcStatus).as(diag).isEqualTo("HANDED_OVER");
             } else {
-                assertThat(st).isEqualTo("CANCELLED");
-                assertThat(mfcStatus).isEqualTo("VOIDED");
+                assertThat(st).as(diag).isEqualTo("CANCELLED");
+                assertThat(mfcStatus).as(diag).isEqualTo("VOIDED");
             }
         }
     }

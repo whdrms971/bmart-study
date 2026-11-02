@@ -214,6 +214,11 @@ public class ExecutionService {
         return d;
     }
 
+    private boolean anyPackageHandedOver(String deliveryId) {
+        return packages.findByDeliveryIdOrderByPackageId(deliveryId).stream().anyMatch(p -> p.getStatus() == PackageStatus.HANDED_OVER);
+    }
+
+    /** 배정 해제(재배정·라이더 배차취소)용: MFC 판정 없이 진행되므로 인계 처리 중·응답 불명도 "이동 가능성 있음"으로 막는다. */
     private boolean anyPackageMoved(String deliveryId) {
         List<DeliveryPackage> ps = packages.findByDeliveryIdOrderByPackageId(deliveryId);
         return ps.stream().anyMatch(p -> p.getStatus() == PackageStatus.HANDED_OVER || p.getStatus() == PackageStatus.HANDOVER_UNKNOWN);
@@ -228,9 +233,9 @@ public class ExecutionService {
     @Transactional
     public CancelResult cancelFromOms(String deliveryId, CancelRequest req) {
         Delivery peek = deliveries.findById(deliveryId).orElseThrow(() -> ApiException.notFound("DELIVERY_NOT_FOUND", deliveryId));
-        if (packages.findByDeliveryIdOrderByPackageId(deliveryId).stream().anyMatch(p -> p.getStatus() == PackageStatus.HANDOVER_UNKNOWN)) {
-            throw ApiException.conflict("HANDOVER_CONFIRMING", "인계 결과 확인 중입니다. 원결과 확인 후 다시 요청하세요");
-        }
+        // (2026-11-02) 이전의 "인계 결과 불명이면 409 HANDOVER_CONFIRMING" 사전 검사는 제거했다. 취소 요청은 MFC 가 전 포장
+        // STOPPED 를 확정한 뒤에만 오므로(S3-b) MFC 판정이 Delivery 의 불명·처리 중 상태보다 우선한다. 인계를 트랜잭션 밖 MFC
+        // 호출로 바꾼 뒤 이 검사가 정상 취소를 막았다(D-12).
         return idempotency.execute(req.sourceSystem(), "cancel:" + req.requestId(), Map.of("deliveryId", peek.getId(), "reason",
                 String.valueOf(req.reason())), CancelResult.class, () -> doCancel(deliveryId, req));
     }
@@ -241,7 +246,9 @@ public class ExecutionService {
         if (d.getStatus() == DeliveryStatus.DELIVERED) {
             return new CancelResult(deliveryId, "NOT_CANCELLABLE_DELIVERED", d.getStatus(), "이미 전달 완료됨 — 반품 절차 대상");
         }
-        if (!DeliveryStatus.BEFORE_PICKUP.contains(d.getStatus()) || anyPackageMoved(deliveryId)) {
+        // OMS 는 MFC 출고 중지(StopWork)에서 전 포장 STOPPED 를 받은 배송만 취소를 요청한다(cancel-vs-handover S3-b).
+        // 따라서 Delivery 쪽 "인계 처리 중/응답 불명" 포장은 MFC 판정상 인계되지 않았다 → 실제 인계 확정 포장만 취소를 막는다.
+        if (!DeliveryStatus.BEFORE_PICKUP.contains(d.getStatus()) || anyPackageHandedOver(deliveryId)) {
             history.note(d, req.sourceSystem(), "취소 요청 거절: 인계 확정 포장 존재 → 회수 필요");
             return new CancelResult(deliveryId, "REJECTED_HANDED_OVER", d.getStatus(), "인계된 포장이 있어 출고 전 취소 불가 — 회수·반품 경로");
         }

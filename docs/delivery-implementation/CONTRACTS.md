@@ -55,7 +55,7 @@
 ### `POST /internal/deliveries/{deliveryId}/cancel` (X-Internal-Token)
 `{ "sourceSystem", "requestId", "reason" }` → `{deliveryId, result, status, message}`
 - `result`: `CANCELLED` | `ALREADY_CANCELLED` | `REJECTED_HANDED_OVER`(회수 경로) | `NOT_CANCELLABLE_DELIVERED`
-- 인계 결과 불명 포장이 있으면 `409 HANDOVER_CONFIRMING` (원결과 확인 후 재요청)
+- (2026-11-02 변경) 인계 결과 불명·처리 중 포장이 있어도 취소를 받는다 — 취소는 MFC 가 전 포장 STOPPED 를 확정한 뒤에만 요청되므로 MFC 판정이 우선. 실제 인계 확정(HANDED_OVER) 포장이 있으면 `REJECTED_HANDED_OVER`(회수 경로). 이전의 `409 HANDOVER_CONFIRMING` 은 폐지
 - 순서 원칙: OMS 는 먼저 MFC 출고 중지(StopWork)를 받고, 전 포장 STOPPED 인 배송만 취소 요청 (cancel-vs-handover S3-b)
 
 ## 3. MFC ↔ Delivery
