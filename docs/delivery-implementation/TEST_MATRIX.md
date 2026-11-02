@@ -162,4 +162,4 @@
 | 교착 ②: 인계 스캔이 MFC 호출 동안 행 잠금 유지 | ✅ 자동 | 스캔을 준비(짧은 트랜잭션, 포장 `HANDOVER_UNKNOWN`) → 트랜잭션 밖 MFC 호출 → 반영(짧은 트랜잭션)으로 분리. 그 사이 취소·무효화된 포장은 `DELIVERY_CANCELLED` |
 | 취소 차단 기준 (cancel-vs-handover S3-b) | ✅ 자동 | 취소는 **HANDED_OVER 포장이 있을 때만** 차단(인계 확인 중 상태로 미리 막지 않음). 재배정 해제는 기존대로 움직인 포장이 있으면 차단. D-12 3회 반복 통과, E1 통과 |
 | 앱 401 공통 처리 | ✅ 자동 / ✅ 에뮬 | E2 `session_gate_test` 2건(401 → 저장 세션 삭제·상세 화면 닫힘, 이전 세션의 늦은 401 무시). E7: 고객 앱 추적 화면·라이더 홈을 연 채 서버를 다른 서명 키로 재시작 → 두 앱 모두 20초 안에 로그인 화면 |
-| GitHub Actions CI (`.github/workflows/delivery-ci.yml`) | ⬜ 미검증 | 백엔드(H2·PostgreSQL 매트릭스)·Flutter 3개 패키지·관리 화면 빌드. 원격 push 후 첫 실행 결과를 확인해야 한다 |
+| GitHub Actions CI (`.github/workflows/delivery-ci.yml`) | ✅ 자동 | 2026-11-02 첫 실행(run 41402923200, 커밋 `c04421d`) 4개 작업 모두 성공: backend(h2)·backend(postgres)·flutter(analyze+test)·simulator-admin(build). 배포 단계 없음(테스트만) |
